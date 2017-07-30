@@ -1,12 +1,62 @@
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#include "queue.h"
 #include "libgbt.h"
 #include "config.h"
 
-/*
- * The main function is only used for testing purposes and
- * will disappear upon reaching v0.1
- */
-int
-main(int argc, char *argv[])
+/* BENCODING functions */
+static char *
+bencoding_parsestring(FILE *stream, int len)
 {
-	return 0;
+	int r = 0;
+	char *string;
+
+	string = malloc(len + 1);
+	if (!string)
+		return NULL;
+
+	while (r < len)
+		r += fread(string+r, 1, len - r, stream);
+
+	string[len] = 0;
+	fprintf(stderr, "BENCODING: string:%s\n", string);
+	return string;
+}
+
+struct bedata *
+bencoding_parse(FILE *stream)
+{
+	int r = 0;
+	char type[32]; /* enough to hold an integer string value */
+
+	while (fread(type, 1, 1, stream)) {
+		switch(type[0]) {
+		case 'd':
+		case 'l':
+		case 'i':
+			break;
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9':
+			r = 0;
+			while (*(type+r) != ':')
+				fread(type + ++r, 1, 1, stream);
+			bencoding_parsestring(stream, atoi(type));
+			fread(type, 1, 1, stream); /* reads last 'e' */
+			break;
+		default:
+			fprintf(stderr, "BENCODING: %c: Unknown type\n", *type);
+		}
+	}
+	return NULL;
 }
