@@ -3,7 +3,7 @@ libgbt
 
 A Bittorrent library robust like a grizzly
 
-The Grizzly BitTorrent library (will) implement all the functionnality
+The Grizzly BitTorrent library (will) implement all the functionality
 described in the bittorrent protocol RFC[0], as well as the distributed
 hash table (DHT) protocol[1].
 
