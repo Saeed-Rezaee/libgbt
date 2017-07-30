@@ -12,8 +12,12 @@ static struct beelem *
 bencoding_parsestring(FILE *stream, int len)
 {
 	int r = 0;
-	char *string;
+	char *string = NULL;
 	struct beelem *tmp = NULL;
+
+	tmp = malloc(sizeof(struct beelem));
+	if (!tmp)
+		return NULL;
 
 	string = malloc(len + 1);
 	if (!string)
@@ -25,15 +29,12 @@ bencoding_parsestring(FILE *stream, int len)
 	string[len] = 0;
 	fprintf(stderr, "BENCODING: string:%s\n", string);
 
-	tmp = malloc(sizeof(tmp));
-	if (!tmp)
-		return NULL;
-
 	tmp->type = BENCODING_STRING;
-	tmp->value = string;
+	tmp->string = string;
 
 	return tmp;
 }
+
 
 struct bedata *
 bencoding_parse(FILE *stream)
@@ -43,7 +44,8 @@ bencoding_parse(FILE *stream)
 	struct beelem *tmp = NULL;
 	TAILQ_HEAD(bedata, beelem) behead = TAILQ_HEAD_INITIALIZER(behead);
 
-	while (fread(type, 1, 1, stream)) {
+	while (!feof(stream)) {
+		fread(type, 1, 1, stream);
 		switch(type[0]) {
 		case 'd':
 		case 'l':
