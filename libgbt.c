@@ -67,7 +67,7 @@ bencoding_parsestring(FILE *stream, int len)
 
 
 struct bedata *
-bencoding_parse(FILE *stream)
+bencoding_parselist(FILE *stream)
 {
 	int r = 0;
 	char type[32]; /* enough to hold an integer string value */
@@ -84,7 +84,12 @@ bencoding_parse(FILE *stream)
 		fread(type, 1, 1, stream);
 		switch(type[0]) {
 		case 'd':
+			break;
 		case 'l':
+			tmp = malloc(sizeof(struct beelem));
+			tmp->type = BENCODING_LIST;
+			fprintf(stderr, "BENCODING: -- LIST_START --\n");
+			tmp->list = bencoding_parselist(stream);
 			break;
 		case 'i':
 			tmp = bencoding_parseinteger(stream);
@@ -104,6 +109,8 @@ bencoding_parse(FILE *stream)
 				fread(type + ++r, 1, 1, stream);
 			tmp = bencoding_parsestring(stream, atoi(type));
 			break;
+		case  'e':
+			fprintf(stderr, "BENCODING: --- LIST_END ---\n");
 		case '\n':
 			return behead;
 			break; /* NOTREACHED */
