@@ -12,10 +12,10 @@ struct beelem {
 		int   number;
 		char *string;
 	};
-	char *value;
 	TAILQ_ENTRY(beelem) entries;
 };
 TAILQ_HEAD(bedata, beelem);
 
 struct bedata * bencoding_parse(FILE *);
+static struct beelem * bencoding_parseinteger(FILE *);
 static struct beelem * bencoding_parsestring(FILE *, int);
