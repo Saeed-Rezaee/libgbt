@@ -103,7 +103,7 @@ bencoding_parselist(FILE *stream)
 		case '9':
 			r = 0;
 			while (*(type+r) != ':')
-				fread(type + ++r, 1, 1, stream);
+				fread(type + (++r), 1, 1, stream);
 			tmp = bencoding_parsestring(stream, atoi(type));
 			break;
 		case  'e':
