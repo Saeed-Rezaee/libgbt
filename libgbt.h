@@ -1,17 +1,17 @@
 /* BENCODING types */
 enum betype {
-	dictionnary,
-	list,
-	integer,
-	string
+	BENCODING_DICTIONNARY,
+	BENCODING_LIST,
+	BENCODING_INTEGER,
+	BENCODING_STRING
 };
 
-struct beeelem {
+struct beelem {
 	enum betype type;
 	char *value;
-	SLIST_ENTRY(beelem) entries;
+	TAILQ_ENTRY(beelem) entries;
 };
-SLIST_HEAD(bedata, beelem);
+TAILQ_HEAD(bedata, beelem);
 
 struct bedata * bencoding_parse(FILE *);
-static char * bencoding_parsestring(FILE *, int);
+static struct beelem * bencoding_parsestring(FILE *, int);
