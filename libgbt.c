@@ -72,13 +72,20 @@ bencoding_parse(FILE *stream)
 	int r = 0;
 	char type[32]; /* enough to hold an integer string value */
 	struct beelem *tmp = NULL;
-	TAILQ_HEAD(bedata, beelem) behead = TAILQ_HEAD_INITIALIZER(behead);
+	struct bedata *behead = NULL;
+
+	behead = malloc(sizeof(struct bedata));
+	if (!behead)
+		return NULL;
+
+	TAILQ_INIT(behead);
 
 	while (!feof(stream)) {
 		fread(type, 1, 1, stream);
 		switch(type[0]) {
 		case 'd':
 		case 'l':
+			break;
 		case 'i':
 			tmp = bencoding_parseinteger(stream);
 			break;
@@ -96,14 +103,15 @@ bencoding_parse(FILE *stream)
 			while (*(type+r) != ':')
 				fread(type + ++r, 1, 1, stream);
 			tmp = bencoding_parsestring(stream, atoi(type));
-			TAILQ_INSERT_TAIL(&behead, tmp, entries);
-			fread(type, 1, 1, stream); /* reads last 'e' */
 			break;
+		case '\n':
+			return behead;
+			break; /* NOTREACHED */
 		default:
 			fprintf(stderr, "BENCODING: %c: Unknown type\n", *type);
-			while (*(type+r) != 'e')
-				fread(type, 1, 1, stream);
+			return NULL;
 		}
+		TAILQ_INSERT_TAIL(behead, tmp, entries);
 	}
-	return NULL;
+	return behead;
 }
