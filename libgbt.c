@@ -29,7 +29,6 @@ bencoding_parseinteger(FILE *stream)
 
 	string[--r] = 0;
 	integer = atoi(string);
-	fprintf(stderr, "BENCODING: integer:%d\n", integer);
 
 	tmp->type = BENCODING_INTEGER;
 	tmp->number = integer;
@@ -57,7 +56,6 @@ bencoding_parsestring(FILE *stream, int len)
 		r += fread(string+r, 1, len - r, stream);
 
 	string[len] = 0;
-	fprintf(stderr, "BENCODING: string:%s\n", string);
 
 	tmp->type = BENCODING_STRING;
 	tmp->string = string;
@@ -88,7 +86,6 @@ bencoding_parselist(FILE *stream)
 		case 'l':
 			tmp = malloc(sizeof(struct beelem));
 			tmp->type = BENCODING_LIST;
-			fprintf(stderr, "BENCODING: -- LIST_START --\n");
 			tmp->list = bencoding_parselist(stream);
 			break;
 		case 'i':
@@ -110,12 +107,10 @@ bencoding_parselist(FILE *stream)
 			tmp = bencoding_parsestring(stream, atoi(type));
 			break;
 		case  'e':
-			fprintf(stderr, "BENCODING: --- LIST_END ---\n");
 		case '\n':
 			return behead;
 			break; /* NOTREACHED */
 		default:
-			fprintf(stderr, "BENCODING: %c: Unknown type\n", *type);
 			return NULL;
 		}
 		TAILQ_INSERT_TAIL(behead, tmp, entries);
