@@ -1,0 +1,35 @@
+libgbt
+======
+
+A Bittorrent library robust like a grizzly
+
+The Grizzly BitTorrent library (will) implement all the functionnality
+described in the bittorrent protocol RFC[0], as well as the distributed
+hash table (DHT) protocol[1].
+
+Installation
+------------
+Edit the `config.mk` file to match your setup, then run:
+
+	$ make
+	# make install
+
+Usage
+-----
+Include the header file as follow:
+
+	#include <libgtb.h>
+
+Link your program against it with
+
+	cc pgm.c -lgbt -o pgm
+
+Until v1.0 is complete, please check the `libgbt.h` for the API.
+
+License
+-------
+ISC License. See LICENSE file for copyright and license details.
+
+[0] http://jonas.nitro.dk/bittorrent/bittorrent-rfc.html
+[1] https://en.wikipedia.org/wiki/Distributed_hash_table
+
