@@ -9,6 +9,36 @@
 
 /* BENCODING functions */
 static struct beelem *
+bencoding_parseinteger(FILE *stream)
+{
+	int integer, r = 0;
+	char *string = NULL;
+	struct beelem *tmp = NULL;
+
+	tmp = malloc(sizeof(tmp));
+	if (!tmp)
+		return NULL;
+
+	string = malloc(32);
+	if (!string)
+		return NULL;
+
+	do {
+                fread(string + (r++), 1, 1, stream);
+	} while (r < 32 && string[r-1] != 'e');
+
+	string[--r] = 0;
+	integer = atoi(string);
+	fprintf(stderr, "BENCODING: integer:%d\n", integer);
+
+	tmp->type = BENCODING_INTEGER;
+	tmp->number = integer;
+
+	return tmp;
+}
+
+
+static struct beelem *
 bencoding_parsestring(FILE *stream, int len)
 {
 	int r = 0;
@@ -50,6 +80,7 @@ bencoding_parse(FILE *stream)
 		case 'd':
 		case 'l':
 		case 'i':
+			tmp = bencoding_parseinteger(stream);
 			break;
 		case '0':
 		case '1':

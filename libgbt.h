@@ -8,6 +8,10 @@ enum betype {
 
 struct beelem {
 	enum betype type;
+	union {
+		int   number;
+		char *string;
+	};
 	char *value;
 	TAILQ_ENTRY(beelem) entries;
 };
