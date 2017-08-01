@@ -11,11 +11,11 @@
 static struct beelem *
 bencoding_parseinteger(FILE *stream)
 {
-	int integer, r = 0;
+	int r = 0;
 	char *string = NULL;
 	struct beelem *tmp = NULL;
 
-	tmp = malloc(sizeof(tmp));
+	tmp = malloc(sizeof(struct beelem));
 	if (!tmp)
 		return NULL;
 
@@ -28,10 +28,9 @@ bencoding_parseinteger(FILE *stream)
 	} while (r < 32 && string[r-1] != 'e');
 
 	string[--r] = 0;
-	integer = atoi(string);
-
 	tmp->type = BENCODING_INTEGER;
-	tmp->number = integer;
+	tmp->number = atoi(string);
+	free(string);
 
 	return tmp;
 }
