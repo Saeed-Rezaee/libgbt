@@ -186,6 +186,13 @@ bfree(struct blist *head)
 	return 0;
 }
 
+
+/*
+ * Loop through all the keys in a dictionary and return the bencoding
+ * element whose key match the given parameter.
+ * Dictionaries are treated as lists, so key/values elements follow
+ * each others. Keys are odd elements, values are even ones.
+ */
 struct bdata *
 bsearchkey(struct blist *dict, char *key)
 {
