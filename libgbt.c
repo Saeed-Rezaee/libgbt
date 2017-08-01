@@ -7,7 +7,13 @@
 #include "libgbt.h"
 #include "config.h"
 
-/* BENCODING functions */
+/*
+ * Reads bytes from a stream and extract an integer bencoded.
+ * When calling the function, the first byte 'i' has already been
+ * read, which means that we can expect only digits until the last 'e'
+ *
+ * Returns a bencoding INTEGER data element that can be pushed in a list
+ */
 static struct bdata *
 bparseint(FILE *stream)
 {
@@ -19,10 +25,15 @@ bparseint(FILE *stream)
 	if (!tmp)
 		return NULL;
 
+	/*
+	 * Random size for the buffer. An integer should never be 32
+	 * bytes long anyway
+	 */
 	string = malloc(32);
 	if (!string)
 		return NULL;
 
+	/* Read all bytes until we encounter an 'e' */
 	do {
                 fread(string + (r++), 1, 1, stream);
 	} while (r < 32 && string[r-1] != 'e');
@@ -36,6 +47,12 @@ bparseint(FILE *stream)
 }
 
 
+/*
+ * Reads a given number of bytes and store it in a STRING bencoding
+ * data element.
+ *
+ * Returns a bencoding STRING data element that can be pushed in a list
+ */
 static struct bdata *
 bparsestr(FILE *stream, int len)
 {
@@ -63,6 +80,16 @@ bparsestr(FILE *stream, int len)
 }
 
 
+/*
+ * Reads a LIST of bencoding data elements. Lists can be composed of
+ * any bencoding type, including lists themselves (hence the recursive
+ * call of this function.
+ *
+ * List are treated as a special type here, as they are TAILQs of other
+ * data elements.
+ *
+ * Return a bencoding list that can be added into a LIST data element
+ */
 struct blist *
 bparselist(FILE *stream)
 {
@@ -82,6 +109,7 @@ bparselist(FILE *stream)
 		switch(type[0]) {
 		case 'd':
 			break;
+		/* Nested list: create a data element to reference this "sub" list */
 		case 'l':
 			tmp = malloc(sizeof(struct bdata));
 			if (!tmp)
@@ -92,6 +120,11 @@ bparselist(FILE *stream)
 		case 'i':
 			tmp = bparseint(stream);
 			break;
+		/*
+		 * Any number denotes the presence of a string. We must
+		 * then read all bytes up to the next ':' to know the length
+		 * of the upcoming string.
+		 */
 		case '0':
 		case '1':
 		case '2':
@@ -107,6 +140,12 @@ bparselist(FILE *stream)
 				fread(type + (++r), 1, 1, stream);
 			tmp = bparsestr(stream, atoi(type));
 			break;
+		/*
+		 * An 'e' standing on its own means that we finished
+		 * reading our sublist. In case of the main list, it
+		 * will end up with an \n, or EOF, so we can safely return
+		 * our list
+		 */
 		case  'e':
 		case '\n':
 			return behead;
@@ -119,7 +158,11 @@ bparselist(FILE *stream)
 	return behead;
 }
 
-
+/*
+ * Loop through all data nodes of a list struct, and free everything
+ * inside it, as well as list nodes themselves.
+ * Every blist structure MUST be free'd with this function at some point.
+ */
 int
 bfree(struct blist *head)
 {

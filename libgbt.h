@@ -1,3 +1,4 @@
+/* scalar and compound types available in bencoding */
 enum btype {
 	DICTIONNARY,
 	LIST,
@@ -5,6 +6,7 @@ enum btype {
 	STRING
 };
 
+/* structure defining _ANY_ type of bencoding data */
 struct bdata {
 	enum btype type;
 	union {
