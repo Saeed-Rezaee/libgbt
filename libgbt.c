@@ -118,3 +118,28 @@ bencoding_parselist(FILE *stream)
 	}
 	return behead;
 }
+
+
+int
+bencoding_free(struct bedata *head)
+{
+	struct beelem *np = NULL;
+	while (!TAILQ_EMPTY(head)) {
+		np = TAILQ_FIRST(head);
+		switch(np->type) {
+		case BENCODING_STRING:
+			free(np->string);
+			break;
+		case BENCODING_LIST:
+			bencoding_free(np->list);
+			break;
+		case BENCODING_INTEGER:
+		case BENCODING_DICTIONNARY:
+			break;
+		}
+		TAILQ_REMOVE(head, np, entries);
+		free(np);
+	}
+	free(head);
+	return 0;
+}

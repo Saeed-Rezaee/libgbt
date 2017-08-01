@@ -21,3 +21,4 @@ TAILQ_HEAD(bedata, beelem);
 static struct beelem * bencoding_parseinteger(FILE *);
 static struct beelem * bencoding_parsestring(FILE *, int);
 struct bedata * bencoding_parselist(FILE *);
+int bencoding_free(struct bedata *);
