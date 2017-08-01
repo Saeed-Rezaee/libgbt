@@ -2,7 +2,7 @@ include config.mk
 
 all: libgbt.a
 test: libgbt.a
-	make -C tests
+	make -C tests clean run
 
 .o.a:
 	$(AR) rcs $@ $<

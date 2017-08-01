@@ -1,4 +1,4 @@
-CPPFLAGS = -I..
+CPPFLAGS = -I.. -g
 LDFLAGS = -L..
 LDLIBS = -lgbt
 
