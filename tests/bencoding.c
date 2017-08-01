@@ -11,13 +11,16 @@
 
 char *
 bencode(struct bedata *head) {
-	char * out;
+	char *out, *list;
 	char tmp[32] = { 0 };
 
-	out = malloc(sizeof(INPUT));
+	out = malloc(sizeof(INPUT) + 1);
+	if (!out)
+		return NULL;
+	memset(out, 0, sizeof(INPUT) + 1);
 	struct beelem *np = NULL;
 	TAILQ_FOREACH(np, head, entries) {
-		fflush(stdout);
+		memset(tmp, 0, 32);
 		switch(np->type) {
 		case BENCODING_INTEGER:
 			sprintf(tmp, "i%de", np->number);
@@ -27,7 +30,9 @@ bencode(struct bedata *head) {
 			break;
 		case BENCODING_LIST:
 			strcat(out, "l");
-			strcat(out, bencode(np->list));
+			list = bencode(np->list);
+			strcat(out, list);
+			free(list);
 			sprintf(tmp, "e");
 			break;
 		}
@@ -45,5 +50,7 @@ main(int argc, char *argv[])
 	assert(head != NULL);
 	OUTPUT = bencode(head);
 	assert(strcmp(INPUT, OUTPUT) == 0);
+	bencoding_free(head);
+	free(OUTPUT);
 	return 0;
 }
