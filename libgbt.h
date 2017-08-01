@@ -22,3 +22,4 @@ static struct bdata * bparseint(FILE *);
 static struct bdata * bparsestr(FILE *, int);
 struct blist * bparselist(FILE *);
 int bfree(struct blist *);
+struct bdata * bsearchkey(struct blist *, char *);

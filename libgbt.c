@@ -1,6 +1,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "queue.h"
@@ -183,4 +184,16 @@ bfree(struct blist *head)
 	}
 	free(head);
 	return 0;
+}
+
+struct bdata *
+bsearchkey(struct blist *dict, char *key)
+{
+	struct bdata *np = NULL;
+	TAILQ_FOREACH(np, dict, entries) {
+		if (!strcmp(np->string, key))
+			return TAILQ_NEXT(np, entries);
+		np = TAILQ_NEXT(np, entries);
+	}
+	return NULL;
 }
