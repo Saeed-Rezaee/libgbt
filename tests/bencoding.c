@@ -7,7 +7,7 @@
 #include "libgbt.h"
 #include "config.h"
 
-#define INPUT "i123e8:announceli2e3:fooei123e"
+#define INPUT "i123e8:announceli2e3:fooed5:monthi4e4:name5:april7:shadockl2:ga2:bu2:zo3:meuee"
 
 char *
 bencode(struct blist *head) {
@@ -28,8 +28,9 @@ bencode(struct blist *head) {
 		case STRING:
 			sprintf(tmp, "%d:%s", strlen(np->string), np->string);
 			break;
+		case DICTIONNARY:
 		case LIST:
-			strcat(out, "l");
+			strcat(out, np->type == LIST ? "l" : "d");
 			list = bencode(np->list);
 			strcat(out, list);
 			free(list);
