@@ -1,6 +1,6 @@
 /* scalar and compound types available in bencoding */
 enum btype {
-	DICTIONNARY,
+	DICTIONARY,
 	LIST,
 	INTEGER,
 	STRING

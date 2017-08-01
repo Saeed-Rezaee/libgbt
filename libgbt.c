@@ -112,7 +112,7 @@ bparselist(FILE *stream)
 			tmp = malloc(sizeof(struct bdata));
 			if (!tmp)
 				return NULL;
-			tmp->type = type[0] == 'd' ? DICTIONNARY : LIST;
+			tmp->type = type[0] == 'd' ? DICTIONARY : LIST;
 			tmp->list = bparselist(stream);
 			break;
 		case 'i':
@@ -175,7 +175,7 @@ bfree(struct blist *head)
 			bfree(np->list);
 			break;
 		case INTEGER:
-		case DICTIONNARY:
+		case DICTIONARY:
 			break;
 		}
 		TAILQ_REMOVE(head, np, entries);

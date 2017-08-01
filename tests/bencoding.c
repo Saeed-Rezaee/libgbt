@@ -28,7 +28,7 @@ bencode(struct blist *head) {
 		case STRING:
 			sprintf(tmp, "%d:%s", strlen(np->string), np->string);
 			break;
-		case DICTIONNARY:
+		case DICTIONARY:
 		case LIST:
 			strcat(out, np->type == LIST ? "l" : "d");
 			list = bencode(np->list);
@@ -45,7 +45,7 @@ bencode(struct blist *head) {
 int
 main(int argc, char *argv[])
 {
-	char *OUTPUT = NULL;	
+	char *OUTPUT = NULL, *res = NULL;	
 	struct blist *head = NULL;
 	head = bparselist(stdin);
 	assert(head != NULL);
