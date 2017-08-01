@@ -107,14 +107,12 @@ bparselist(FILE *stream)
 	while (!feof(stream)) {
 		fread(type, 1, 1, stream);
 		switch(type[0]) {
-		case 'd':
-			break;
-		/* Nested list: create a data element to reference this "sub" list */
+		case 'd': /* FALLTHROUGH */
 		case 'l':
 			tmp = malloc(sizeof(struct bdata));
 			if (!tmp)
 				return NULL;
-			tmp->type = LIST;
+			tmp->type = type[0] == 'd' ? DICTIONNARY : LIST;
 			tmp->list = bparselist(stream);
 			break;
 		case 'i':
