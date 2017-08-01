@@ -19,7 +19,7 @@ main(int argc, char *argv[])
         assert(head != NULL);
 	dict = TAILQ_FIRST(head);
         assert(dict->type == DICTIONARY);
-	OUTPUT = bdictget(dict->list, "name")->string;
+	OUTPUT = bsearchkey(dict->list, "name")->string;
 	assert(!strcmp(INPUT, OUTPUT));
         bfree(head);
 	return 0;
