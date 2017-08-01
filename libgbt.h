@@ -1,24 +1,22 @@
-/* BENCODING types */
-enum betype {
-	BENCODING_DICTIONNARY,
-	BENCODING_LIST,
-	BENCODING_INTEGER,
-	BENCODING_STRING
+enum btype {
+	DICTIONNARY,
+	LIST,
+	INTEGER,
+	STRING
 };
 
-/* used for "list" types in beelem declaration */
-struct beelem {
-	enum betype type;
+struct bdata {
+	enum btype type;
 	union {
-		int   number;
-		char *string;
-		struct bedata *list;
+		int           number;
+		char         *string;
+		struct blist *list;
 	};
-	TAILQ_ENTRY(beelem) entries;
+	TAILQ_ENTRY(bdata) entries;
 };
-TAILQ_HEAD(bedata, beelem);
+TAILQ_HEAD(blist, bdata);
 
-static struct beelem * bencoding_parseinteger(FILE *);
-static struct beelem * bencoding_parsestring(FILE *, int);
-struct bedata * bencoding_parselist(FILE *);
-int bencoding_free(struct bedata *);
+static struct bdata * bparseint(FILE *);
+static struct bdata * bparsestr(FILE *, int);
+struct blist * bparselist(FILE *);
+int bfree(struct blist *);

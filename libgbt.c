@@ -8,14 +8,14 @@
 #include "config.h"
 
 /* BENCODING functions */
-static struct beelem *
-bencoding_parseinteger(FILE *stream)
+static struct bdata *
+bparseint(FILE *stream)
 {
 	int r = 0;
 	char *string = NULL;
-	struct beelem *tmp = NULL;
+	struct bdata *tmp = NULL;
 
-	tmp = malloc(sizeof(struct beelem));
+	tmp = malloc(sizeof(struct bdata));
 	if (!tmp)
 		return NULL;
 
@@ -28,7 +28,7 @@ bencoding_parseinteger(FILE *stream)
 	} while (r < 32 && string[r-1] != 'e');
 
 	string[--r] = 0;
-	tmp->type = BENCODING_INTEGER;
+	tmp->type = INTEGER;
 	tmp->number = atoi(string);
 	free(string);
 
@@ -36,14 +36,14 @@ bencoding_parseinteger(FILE *stream)
 }
 
 
-static struct beelem *
-bencoding_parsestring(FILE *stream, int len)
+static struct bdata *
+bparsestr(FILE *stream, int len)
 {
 	int r = 0;
 	char *string = NULL;
-	struct beelem *tmp = NULL;
+	struct bdata *tmp = NULL;
 
-	tmp = malloc(sizeof(struct beelem));
+	tmp = malloc(sizeof(struct bdata));
 	if (!tmp)
 		return NULL;
 
@@ -56,22 +56,22 @@ bencoding_parsestring(FILE *stream, int len)
 
 	string[len] = 0;
 
-	tmp->type = BENCODING_STRING;
+	tmp->type = STRING;
 	tmp->string = string;
 
 	return tmp;
 }
 
 
-struct bedata *
-bencoding_parselist(FILE *stream)
+struct blist *
+bparselist(FILE *stream)
 {
 	int r = 0;
 	char type[32]; /* enough to hold an integer string value */
-	struct beelem *tmp = NULL;
-	struct bedata *behead = NULL;
+	struct bdata *tmp = NULL;
+	struct blist *behead = NULL;
 
-	behead = malloc(sizeof(struct bedata));
+	behead = malloc(sizeof(struct blist));
 	if (!behead)
 		return NULL;
 
@@ -83,14 +83,14 @@ bencoding_parselist(FILE *stream)
 		case 'd':
 			break;
 		case 'l':
-			tmp = malloc(sizeof(struct beelem));
+			tmp = malloc(sizeof(struct bdata));
 			if (!tmp)
 				return NULL;
-			tmp->type = BENCODING_LIST;
-			tmp->list = bencoding_parselist(stream);
+			tmp->type = LIST;
+			tmp->list = bparselist(stream);
 			break;
 		case 'i':
-			tmp = bencoding_parseinteger(stream);
+			tmp = bparseint(stream);
 			break;
 		case '0':
 		case '1':
@@ -105,7 +105,7 @@ bencoding_parselist(FILE *stream)
 			r = 0;
 			while (*(type+r) != ':')
 				fread(type + (++r), 1, 1, stream);
-			tmp = bencoding_parsestring(stream, atoi(type));
+			tmp = bparsestr(stream, atoi(type));
 			break;
 		case  'e':
 		case '\n':
@@ -121,20 +121,20 @@ bencoding_parselist(FILE *stream)
 
 
 int
-bencoding_free(struct bedata *head)
+bfree(struct blist *head)
 {
-	struct beelem *np = NULL;
+	struct bdata *np = NULL;
 	while (!TAILQ_EMPTY(head)) {
 		np = TAILQ_FIRST(head);
 		switch(np->type) {
-		case BENCODING_STRING:
+		case STRING:
 			free(np->string);
 			break;
-		case BENCODING_LIST:
-			bencoding_free(np->list);
+		case LIST:
+			bfree(np->list);
 			break;
-		case BENCODING_INTEGER:
-		case BENCODING_DICTIONNARY:
+		case INTEGER:
+		case DICTIONNARY:
 			break;
 		}
 		TAILQ_REMOVE(head, np, entries);

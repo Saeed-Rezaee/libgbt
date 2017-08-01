@@ -10,25 +10,25 @@
 #define INPUT "i123e8:announceli2e3:fooei123e"
 
 char *
-bencode(struct bedata *head) {
+bencode(struct blist *head) {
 	char *out, *list;
 	char tmp[32] = { 0 };
+	struct bdata *np = NULL;
 
 	out = malloc(sizeof(INPUT) + 1);
 	if (!out)
 		return NULL;
 	memset(out, 0, sizeof(INPUT) + 1);
-	struct beelem *np = NULL;
+	memset(tmp, 0, 32);
 	TAILQ_FOREACH(np, head, entries) {
-		memset(tmp, 0, 32);
 		switch(np->type) {
-		case BENCODING_INTEGER:
+		case INTEGER:
 			sprintf(tmp, "i%de", np->number);
 			break;
-		case BENCODING_STRING:
+		case STRING:
 			sprintf(tmp, "%d:%s", strlen(np->string), np->string);
 			break;
-		case BENCODING_LIST:
+		case LIST:
 			strcat(out, "l");
 			list = bencode(np->list);
 			strcat(out, list);
@@ -45,12 +45,12 @@ int
 main(int argc, char *argv[])
 {
 	char *OUTPUT = NULL;	
-	struct bedata *head = NULL;
-	head = bencoding_parselist(stdin);
+	struct blist *head = NULL;
+	head = bparselist(stdin);
 	assert(head != NULL);
 	OUTPUT = bencode(head);
 	assert(strcmp(INPUT, OUTPUT) == 0);
-	bencoding_free(head);
+	bfree(head);
 	free(OUTPUT);
 	return 0;
 }
