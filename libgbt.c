@@ -84,6 +84,8 @@ bencoding_parselist(FILE *stream)
 			break;
 		case 'l':
 			tmp = malloc(sizeof(struct beelem));
+			if (!tmp)
+				return NULL;
 			tmp->type = BENCODING_LIST;
 			tmp->list = bencoding_parselist(stream);
 			break;
