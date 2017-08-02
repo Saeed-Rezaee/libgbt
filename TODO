@@ -1,0 +1,20 @@
+bencoding
+---------
+* UTF-8 support for strings (wchar.h)
+* function to sort dictionaries (optionnal)
+* function to bencode a structure
+
+overall
+-------
+* split source in different parts
+* get a cool logo (please rocx!)
+* engineer the library API
+* write the documentation of the API
+* create a small example torrent client
+
+RFC parts to implement
+----------------------
+* pieces and blocks
+* metainfo
+* tracker HTTP protocol
+* peer wire protocol
