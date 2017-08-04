@@ -1,8 +1,12 @@
 include config.mk
 
 all: libgbt.a
+libgbt.o: libgbt.c libgbt.h config.h
 test: libgbt.a
 	make -C tests clean run
+
+config.h: config.def.h
+	cp $< $@
 
 .o.a:
 	$(AR) rcs $@ $<
