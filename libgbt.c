@@ -8,6 +8,10 @@
 #include "libgbt.h"
 #include "config.h"
 
+
+static struct bdata * bparseint(FILE *);
+static struct bdata * bparsestr(FILE *, int);
+
 /*
  * Reads bytes from a stream and extract an integer bencoded.
  * When calling the function, the first byte 'i' has already been
@@ -111,13 +115,23 @@ bparselist(FILE *stream)
 		case 'd': /* FALLTHROUGH */
 		case 'l':
 			tmp = malloc(sizeof(struct bdata));
-			if (!tmp)
+			if (!tmp) {
+				free(behead);
 				return NULL;
+			}
 			tmp->type = type[0] == 'd' ? DICTIONARY : LIST;
 			tmp->list = bparselist(stream);
+			if (!tmp->list) {
+				free(behead);
+				return NULL;
+			}
 			break;
 		case 'i':
 			tmp = bparseint(stream);
+			if (!tmp) {
+				free(behead);
+				return NULL;
+			}
 			break;
 		/*
 		 * Any number denotes the presence of a string. We must
@@ -138,6 +152,10 @@ bparselist(FILE *stream)
 			while (*(type+r) != ':')
 				fread(type + (++r), 1, 1, stream);
 			tmp = bparsestr(stream, atoi(type));
+			if (!tmp) {
+				free(behead);
+				return NULL;
+			}
 			break;
 		/*
 		 * An 'e' standing on its own means that we finished
@@ -150,6 +168,7 @@ bparselist(FILE *stream)
 			return behead;
 			break; /* NOTREACHED */
 		default:
+			free(behead);
 			return NULL;
 		}
 		TAILQ_INSERT_TAIL(behead, tmp, entries);
