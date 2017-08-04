@@ -1,12 +1,13 @@
 #include <limits.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 #include "queue.h"
-#include "libgbt.h"
 #include "config.h"
+#include "libgbt.h"
 
 
 static struct bdata * bparseint(FILE *);
