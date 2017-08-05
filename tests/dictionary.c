@@ -4,8 +4,8 @@
 #include <string.h>
 
 #include "queue.h"
-#include "libgbt.h"
 #include "config.h"
+#include "libgbt.h"
 
 #define INPUT "april"
 
