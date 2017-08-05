@@ -1,8 +1,14 @@
 bencoding
 ---------
 * UTF-8 support for strings (wchar.h)
-* function to sort dictionaries (optionnal)
-* function to bencode a structure
+* function to bdecode() a structure (bparselist() wrapper?)
+* function to bencode() a structure (r4ndom)
+
+pieces and blocks
+-----------------
+* add blocks to pieces
+* calculate SHA1 for a piece
+* write pieces to files
 
 overall
 -------
@@ -14,7 +20,6 @@ overall
 
 RFC parts to implement
 ----------------------
-* pieces and blocks
 * metainfo
 * tracker HTTP protocol
 * peer wire protocol
