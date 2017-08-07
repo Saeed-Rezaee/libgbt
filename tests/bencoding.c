@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -47,7 +48,7 @@ main(int argc, char *argv[])
 {
 	char *OUTPUT = NULL, *res = NULL;	
 	struct blist *head = NULL;
-	head = bparselist(stdin);
+	head = bdecode(stdin);
 	assert(head != NULL);
 	OUTPUT = bencode(head);
 	assert(strcmp(INPUT, OUTPUT) == 0);

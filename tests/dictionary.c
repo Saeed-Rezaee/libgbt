@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -15,7 +16,7 @@ main(int argc, char *argv[])
 	char *OUTPUT = NULL;
         struct blist *head = NULL;
 	struct bdata *dict = NULL;
-        head = bparselist(stdin);
+        head = bdecode(stdin);
         assert(head != NULL);
 	dict = TAILQ_FIRST(head);
         assert(dict->type == DICTIONARY);
