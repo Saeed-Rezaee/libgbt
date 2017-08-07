@@ -87,6 +87,12 @@ bparsestr(FILE *stream, int len)
 }
 
 
+/*
+ * Allocate memory for a LIST/DICTIONARY bdata element, and recurse
+ * this sub-list with bencode().
+ *
+ * Returns a bencoding LIST/DICTIONARY data element that can be pushed in a list
+ */
 struct bdata *
 bparselst(FILE *stream, int type)
 {
@@ -105,6 +111,37 @@ bparselst(FILE *stream, int type)
 
 	return tmp;
 }
+
+
+/*
+ * Loop through all data nodes of a list struct, and free everything
+ * inside it, as well as list nodes themselves.
+ * Every blist structure MUST be free'd with this function at some point.
+ */
+int
+bfree(struct blist *head)
+{
+	struct bdata *np = NULL;
+	while (!TAILQ_EMPTY(head)) {
+		np = TAILQ_FIRST(head);
+		switch(np->type) {
+		case STRING:
+			free(np->string);
+			break;
+		case LIST:
+			bfree(np->list);
+			break;
+		case INTEGER:
+		case DICTIONARY:
+			break;
+		}
+		TAILQ_REMOVE(head, np, entries);
+		free(np);
+	}
+	free(head);
+	return 0;
+}
+
 
 /*
  * Reads a LIST of bencoding data elements. Lists can be composed of
@@ -189,35 +226,6 @@ bdecode(FILE *stream)
 		TAILQ_INSERT_TAIL(behead, tmp, entries);
 	}
 	return behead;
-}
-
-/*
- * Loop through all data nodes of a list struct, and free everything
- * inside it, as well as list nodes themselves.
- * Every blist structure MUST be free'd with this function at some point.
- */
-int
-bfree(struct blist *head)
-{
-	struct bdata *np = NULL;
-	while (!TAILQ_EMPTY(head)) {
-		np = TAILQ_FIRST(head);
-		switch(np->type) {
-		case STRING:
-			free(np->string);
-			break;
-		case LIST:
-			bfree(np->list);
-			break;
-		case INTEGER:
-		case DICTIONARY:
-			break;
-		}
-		TAILQ_REMOVE(head, np, entries);
-		free(np);
-	}
-	free(head);
-	return 0;
 }
 
 
