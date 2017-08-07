@@ -12,6 +12,7 @@
 
 static struct bdata * bparseint(FILE *);
 static struct bdata * bparsestr(FILE *, int);
+static struct bdata * bparselst(FILE *, int);
 
 /*
  * Reads bytes from a stream and extract an integer bencoded.
@@ -86,6 +87,25 @@ bparsestr(FILE *stream, int len)
 }
 
 
+struct bdata *
+bparselst(FILE *stream, int type)
+{
+	struct bdata *tmp = NULL;
+
+	tmp = malloc(sizeof(struct bdata));
+	if (!tmp)
+		return NULL;
+
+	tmp->type = type;
+	tmp->list = bdecode(stream);
+	if (!tmp->list) {
+		free(tmp);
+		return NULL;
+	}
+
+	return tmp;
+}
+
 /*
  * Reads a LIST of bencoding data elements. Lists can be composed of
  * any bencoding type, including lists themselves (hence the recursive
@@ -97,7 +117,7 @@ bparsestr(FILE *stream, int len)
  * Return a bencoding list that can be added into a LIST data element
  */
 struct blist *
-bparselist(FILE *stream)
+bdecode(FILE *stream)
 {
 	int r = 0;
 	char type[32]; /* enough to hold an integer string value */
@@ -115,14 +135,8 @@ bparselist(FILE *stream)
 		switch(type[0]) {
 		case 'd': /* FALLTHROUGH */
 		case 'l':
-			tmp = malloc(sizeof(struct bdata));
+			tmp = bparselst(stream, type[0] == 'l' ? LIST : DICTIONARY);
 			if (!tmp) {
-				free(behead);
-				return NULL;
-			}
-			tmp->type = type[0] == 'd' ? DICTIONARY : LIST;
-			tmp->list = bparselist(stream);
-			if (!tmp->list) {
 				free(behead);
 				return NULL;
 			}

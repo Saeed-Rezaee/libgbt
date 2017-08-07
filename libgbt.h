@@ -33,6 +33,6 @@ struct piece {
 	TAILQ_ENTRY(piece) entries;
 };
 
-struct blist * bparselist(FILE *);
+struct blist * bdecode(FILE *);
 int bfree(struct blist *);
 struct bdata * bsearchkey(struct blist *, char *);
