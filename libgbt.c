@@ -11,8 +11,9 @@
 
 
 static struct bdata * bparseint(FILE *);
-static struct bdata * bparsestr(FILE *, int);
+static struct bdata * bparsestr(FILE *, size_t);
 static struct bdata * bparselst(FILE *, int);
+
 
 /*
  * Reads bytes from a stream and extract an integer bencoded.
@@ -61,9 +62,9 @@ bparseint(FILE *stream)
  * Returns a bencoding STRING data element that can be pushed in a list
  */
 static struct bdata *
-bparsestr(FILE *stream, int len)
+bparsestr(FILE *stream, size_t len)
 {
-	int r = 0;
+	size_t r = 0;
 	char *string = NULL;
 	struct bdata *tmp = NULL;
 
@@ -239,6 +240,7 @@ struct bdata *
 bsearchkey(struct blist *dict, char *key)
 {
 	struct bdata *np = NULL;
+	if (key == NULL) return NULL;
 	TAILQ_FOREACH(np, dict, entries) {
 		if (!strcmp(np->string, key))
 			return TAILQ_NEXT(np, entries);
