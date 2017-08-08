@@ -9,11 +9,9 @@
 #include "config.h"
 #include "libgbt.h"
 
-
 static struct bdata * bparseint(FILE *);
 static struct bdata * bparsestr(FILE *, size_t);
 static struct bdata * bparselst(FILE *, int);
-
 
 /*
  * Reads bytes from a stream and extract an integer bencoded.
@@ -231,20 +229,36 @@ bdecode(FILE *stream)
 
 
 /*
- * Loop through all the keys in a dictionary and return the bencoding
- * element whose key match the given parameter.
- * Dictionaries are treated as lists, so key/values elements follow
- * each others. Keys are odd elements, values are even ones.
+ * Search a key within a bencoded data structure recursively.
+ * each data element has to be a string, except for the very
+ * first element which CAN be a dictionary.
+ *
+ * When we encounter a dictionary, the function will be called on this
+ * dictionary so we can find nested keys.
+ *
+ * Because of this search algorithm, only the first occurence of each
+ * key will be retrieved.
+ * This should not be an issue as torrent files are not supposed to
+ * appear twice, except for multifile torrent. For them, this function
+ * can be called for each element of the "files" list.
  */
 struct bdata *
 bsearchkey(struct blist *dict, char *key)
 {
-	struct bdata *np = NULL;
+	struct bdata *np;
 	if (key == NULL) return NULL;
 	TAILQ_FOREACH(np, dict, entries) {
-		if (!strcmp(np->string, key))
-			return TAILQ_NEXT(np, entries);
-		np = TAILQ_NEXT(np, entries);
+		/* we only search dictionaries for string values */
+		if (np->type != DICTIONARY && np->type != STRING)
+			return NULL;
+
+		if (np->type == STRING) {
+			if (!strcmp(np->string, key))
+				return TAILQ_NEXT(np, entries);
+			np = TAILQ_NEXT(np, entries);
+		}
+		if (np->type == DICTIONARY)
+			return bsearchkey(np->list, key);
 	}
 	return NULL;
 }
