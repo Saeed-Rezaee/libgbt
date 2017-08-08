@@ -1,7 +1,6 @@
 bencoding
 ---------
-* UTF-8 support for strings (wchar.h)
-* function to bdecode() a structure (bparselist() wrapper?)
+* UTF-8 support for strings (josuah)
 * function to bencode() a structure (r4ndom)
 
 pieces and blocks
