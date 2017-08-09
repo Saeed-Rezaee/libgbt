@@ -23,16 +23,16 @@ bencode(struct blist *head) {
 	memset(tmp, 0, 32);
 	TAILQ_FOREACH(np, head, entries) {
 		switch(np->type) {
-		case INTEGER:
-			sprintf(tmp, "i%de", np->number);
+		case 'i':
+			sprintf(tmp, "i%de", np->num);
 			break;
-		case STRING:
-			snprintf(tmp, 32, "%zu:%s", strlen(np->string), np->string);
+		case 's':
+			snprintf(tmp, 32, "%zu:%s", strlen(np->str), np->str);
 			break;
-		case DICTIONARY:
-		case LIST:
-			strcat(out, np->type == LIST ? "l" : "d");
-			list = bencode(np->list);
+		case 'd':
+		case 'l':
+			strcat(out, np->type == 'l' ? "l" : "d");
+			list = bencode(np->bl);
 			strcat(out, list);
 			free(list);
 			sprintf(tmp, "e");

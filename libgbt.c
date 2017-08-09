@@ -24,7 +24,7 @@ static struct bdata *
 bparseint(FILE *stream)
 {
 	int r = 0;
-	char *string = NULL;
+	char *str = NULL;
 	struct bdata *tmp = NULL;
 
 	tmp = malloc(sizeof(struct bdata));
@@ -35,19 +35,19 @@ bparseint(FILE *stream)
 	 * Random size for the buffer. An integer should never be 32
 	 * bytes long anyway
 	 */
-	string = malloc(32);
-	if (!string)
+	str = malloc(32);
+	if (!str)
 		return NULL;
 
 	/* Read all bytes until we encounter an 'e' */
 	do {
-                fread(string + (r++), 1, 1, stream);
-	} while (r < 32 && string[r-1] != 'e');
+                fread(str + (r++), 1, 1, stream);
+	} while (r < 32 && str[r-1] != 'e');
 
-	string[--r] = 0;
-	tmp->type = INTEGER;
-	tmp->number = atoi(string);
-	free(string);
+	str[--r] = 0;
+	tmp->type = 'i';
+	tmp->num = atoi(str);
+	free(str);
 
 	return tmp;
 }
@@ -63,25 +63,25 @@ static struct bdata *
 bparsestr(FILE *stream, size_t len)
 {
 	size_t r = 0;
-	char *string = NULL;
+	char *str = NULL;
 	struct bdata *tmp = NULL;
 
 	tmp = malloc(sizeof(struct bdata));
 	if (!tmp)
 		return NULL;
 
-	string = malloc(len + 1);
-	if (!string)
+	str = malloc(len + 1);
+	if (!str)
 		return NULL;
 
 	while (r < len)
-		r += fread(string+r, 1, len - r, stream);
+		r += fread(str+r, 1, len - r, stream);
 
-	string[len] = 0;
+	str[len] = 0;
 
 	tmp->len = len;
-	tmp->type = STRING;
-	tmp->string = string;
+	tmp->type = 's';
+	tmp->str = str;
 
 	return tmp;
 }
@@ -103,8 +103,8 @@ bparselst(FILE *stream, int type)
 		return NULL;
 
 	tmp->type = type;
-	tmp->list = bdecode(stream);
-	if (!tmp->list) {
+	tmp->bl = bdecode(stream);
+	if (!tmp->bl) {
 		free(tmp);
 		return NULL;
 	}
@@ -125,14 +125,14 @@ bfree(struct blist *head)
 	while (!TAILQ_EMPTY(head)) {
 		np = TAILQ_FIRST(head);
 		switch(np->type) {
-		case STRING:
-			free(np->string);
+		case 's':
+			free(np->str);
 			break;
-		case LIST:
-			bfree(np->list);
+		case 'l':
+			bfree(np->bl);
 			break;
-		case INTEGER:
-		case DICTIONARY:
+		case 'i':
+		case 'd':
 			break;
 		}
 		TAILQ_REMOVE(head, np, entries);
@@ -173,7 +173,7 @@ bdecode(FILE *stream)
 		switch(type[0]) {
 		case 'd': /* FALLTHROUGH */
 		case 'l':
-			tmp = bparselst(stream, type[0] == 'l' ? LIST : DICTIONARY);
+			tmp = bparselst(stream, type[0]);
 			if (!tmp) {
 				free(behead);
 				return NULL;
@@ -251,16 +251,16 @@ bsearchkey(struct blist *dict, char *key)
 	if (key == NULL) return NULL;
 	TAILQ_FOREACH(np, dict, entries) {
 		/* we only search dictionaries for string values */
-		if (np->type != DICTIONARY && np->type != STRING)
+		if (np->type != 'd' && np->type != 's')
 			return NULL;
 
-		if (np->type == STRING) {
-			if (!strcmp(np->string, key))
+		if (np->type == 's') {
+			if (!strcmp(np->str, key))
 				return TAILQ_NEXT(np, entries);
 			np = TAILQ_NEXT(np, entries);
 		}
-		if (np->type == DICTIONARY)
-			return bsearchkey(np->list, key);
+		if (np->type == 'd')
+			return bsearchkey(np->bl, key);
 	}
 	return NULL;
 }

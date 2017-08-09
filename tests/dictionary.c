@@ -19,8 +19,8 @@ main(int argc, char *argv[])
         head = bdecode(stdin);
         assert(head != NULL);
 	dict = TAILQ_FIRST(head);
-        assert(dict->type == DICTIONARY);
-	OUTPUT = bsearchkey(dict->list, "name")->string;
+        assert(dict->type == 'd');
+	OUTPUT = bsearchkey(dict->bl, "name")->str;
 	assert(!strcmp(INPUT, OUTPUT));
         bfree(head);
 	return 0;
