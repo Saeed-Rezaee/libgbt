@@ -168,7 +168,8 @@ bdecode(FILE *stream)
 	TAILQ_INIT(behead);
 
 	while (!feof(stream)) {
-		fread(type, 1, 1, stream);
+		if (fread(type, 1, 1, stream) < 1 && feof(stream))
+			return behead;
 		switch(type[0]) {
 		case 'd': /* FALLTHROUGH */
 		case 'l':
