@@ -12,7 +12,7 @@ test_utflen(void)
 	assert(utflen("asdf",                     4) == 1);
 	assert(utflen("\xc0\x8f",                 2) == 2);
 	assert(utflen("\xcf\x8f",                 2) == 2);
-	assert(utflen("✓",             3) == 3);
+	assert(utflen("\xe2\x9c\x93",             3) == 3);
 	assert(utflen("\xf0\xaf\xaf\xaf",         4) == 4);
 	assert(utflen("\xfc\x9c\x9c\x9c\x9c\x9c", 6) == 6);
 
@@ -34,10 +34,13 @@ void
 test_utftorune(void)
 {
 	long r;
+
 	utftorune(&r, "\xe2\x9c\x93", 3);
 	assert(r == 0x2713);
 
-	/* overlong sequence: "\xfc\x80\x80\x9c\x9c\x9c" */
+	/* overlong sequence: */
+	utftorune(&r, "\xfc\x80\x80\x9c\x9c\x9c", 3);
+	assert(r == 0xfffd);
 }
 
 
