@@ -23,6 +23,7 @@
  */
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "utf8.h"
 
@@ -34,22 +35,24 @@
 size_t
 utflen(char *s, int n)
 {
-	unsigned char *sp = (unsigned char) s;
-	int i, len = (*sp == 0xff) ? 0 :  /* 11111111 */
-	             (*sp <= 0xfe) ? 7 :  /* 11111110  0xff - 0x01 */
-	             (*sp <= 0xfd) ? 6 :  /* 1111110x  0xff - 0x02 */
-	             (*sp <= 0xfb) ? 5 :  /* 111110xx  0xff - 0x04 */
-	             (*sp <= 0xf7) ? 4 :  /* 11110xxx  0xff - 0x08 */
-	             (*sp <= 0xef) ? 3 :  /* 1110xxxx  0xff - 0x10 */
-	             (*sp <= 0xdf) ? 2 :  /* 110xxxxx  0xff - 0x20 */
-	             (*sp <= 0xbf) ? 0 :  /* 10xxxxxx  0xff - 0x40 */
-	                             1;   /* 0xxxxxxx  0xff - 0x80 */
+	unsigned char *sp = (unsigned char *) s;
+	int i, len = (*sp < 0x80) ? 1 :  /* 0xxxxxxx < 10000000 */
+	             (*sp < 0xc0) ? 0 :  /* 10xxxxxx < 11000000 */
+	             (*sp < 0xe0) ? 2 :  /* 110xxxxx < 11100000 */
+	             (*sp < 0xf0) ? 3 :  /* 1110xxxx < 11110000 */
+	             (*sp < 0xf8) ? 4 :  /* 11110xxx < 11111000 */
+	             (*sp < 0xfc) ? 5 :  /* 111110xx < 11111100 */
+	             (*sp < 0xfe) ? 6 :  /* 1111110x < 11111110 */
+	             (*sp < 0xff) ? 7 :  /* 11111110 < 11111111 */
+	                            0;
 	if (len > n)
 		return 0;
 
-	/* check if continuation bytes are 10xxxxxx */
+	printf("%d\n", len);
+
+	/* check continuation bytes */
 	for (i = len; i > 0; i--, sp++)
-		if (*sp >= 0x80)
+		if ((*sp & 0xc0) == 0x80)  /* 10xxxxxx & 11000000 */
 			return 0;
 
 	return len;

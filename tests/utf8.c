@@ -2,14 +2,15 @@
 #include <string.h>
 #include <assert.h>
 
-#include "utf8.h"
+#include "../utf8.h"
 
 
 void
 test_utflen(void)
 {
 	assert(utflen("asdf",             4) == 1);
-	assert(utflen("\xcf\x8f",         4) == 2);
+	assert(utflen("\xe0\x8f",         2) == 2);
+	assert(utflen("\xcf\x8f",         2) == 2);
 	assert(utflen("✓",     3) == 3);
 	assert(utflen("\xf0\xaf\xaf\xaf", 4) == 4);
 	assert(utflen("\x8f..",           3) == 0);
