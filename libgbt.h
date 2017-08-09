@@ -9,6 +9,7 @@ enum btype {
 /* structure defining _ANY_ type of bencoding data */
 struct bdata {
 	enum btype type;
+	size_t len;
 	union {
 		int           number;
 		char         *string;

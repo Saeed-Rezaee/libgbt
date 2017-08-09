@@ -79,6 +79,7 @@ bparsestr(FILE *stream, size_t len)
 
 	string[len] = 0;
 
+	tmp->len = len;
 	tmp->type = STRING;
 	tmp->string = string;
 
