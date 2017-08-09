@@ -8,21 +8,25 @@
 void
 test_utflen(void)
 {
-	assert(utflen("asdf",             4) == 1);
-	assert(utflen("\xc0\x8f",         2) == 2);
-	assert(utflen("\xcf\x8f",         2) == 2);
-	assert(utflen("✓",     3) == 3);
-	assert(utflen("\xf0\xaf\xaf\xaf", 4) == 4);
-	assert(utflen("\x8f..",           3) == 0);
-	assert(utflen("\x8f\x4f",         2) == 0);
+	/* valid UTF-8 */
+	assert(utflen("asdf",                     4) == 1);
+	assert(utflen("\xc0\x8f",                 2) == 2);
+	assert(utflen("\xcf\x8f",                 2) == 2);
+	assert(utflen("✓",             3) == 3);
+	assert(utflen("\xf0\xaf\xaf\xaf",         4) == 4);
+	assert(utflen("\xfc\x9c\x9c\x9c\x9c\x9c", 6) == 6);
+
+	/* 10xxxxxx is forbidden leading byte */
+	assert(utflen("\x8f..",                   3) == 0);
 }
 
 
 void
 test_runelen(void)
 {
-	assert(runelen('a')    == 1);
-	assert(runelen(0x2713) == 3);
+	assert(runelen('a')        == 1);
+	assert(runelen(0x2713)     == 3);
+	assert(runelen(0x7fffffff) == 6);
 }
 
 
@@ -30,8 +34,10 @@ void
 test_utftorune(void)
 {
 	long r;
-	utftorune(&r, "\xE2\x9C\x93", 3);
-	assert(r == 2713);
+	utftorune(&r, "\xe2\x9c\x93", 3);
+	assert(r == 0x2713);
+
+	/* overlong sequence: "\xfc\x80\x80\x9c\x9c\x9c" */
 }
 
 
@@ -41,6 +47,7 @@ test_runetoutf(void)
 	char s[8];
 	long r;
 	utftorune(&r, "\xE2\x9C\x93", 3);
+	assert(utflen("\x8c\x9c\x93",     3) == 0);
 	runetoutf(s, r);
 	assert(!strcmp(s, "\xE2\x9C\x93"));
 }
@@ -58,7 +65,7 @@ test_utf8(void)
 		i = strlen(s);
 		for (rp = r, sp = s; i > 0 && *sp != '\0'; sp++, rp++, l++)
 			i -= utftorune(rp, sp, i);
-		for (sp = s, rp = r; l > 0;               sp++, rp++, l--)
+		for (sp = s, rp = r; l > 0;                sp++, rp++, l--)
 			runetoutf(sp, *rp);
 	}
 
@@ -69,19 +76,9 @@ test_utf8(void)
 int
 main()
 {
-	puts("\nutflen");
 	test_utflen();
-
-	puts("\nrunelen");
 	test_runelen();
-
-	puts("\nutftorune");
 	test_utftorune();
-
-	puts("\nrunetoutf");
 	test_runetoutf();
-
-	puts("\nglobal utf8");
-	test_utf8();
 	return 0;
 }

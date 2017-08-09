@@ -70,19 +70,19 @@ runelen(long r)
 
 
 /*
- * Sets 'r' to a rune corresponding to the firsts 'n' bytes of 's'.
+ * Sets 'r' to a rune corresponding to the firsts 'n' bytes of 's', or
+ * 'REPLACEMENT CHARACTER' if the string is misencoded.
  *
- * Return the number of bytes read or 0 if the string is misencoded.
+ * Return the number of bytes read.
  */
 size_t
 utftorune(long *r, char *s, size_t n)
 {
-	char mask[] = { 0x00, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
+	char mask[] = { 0x00, 0x2f, 0x0f, 0x07, 0x03, 0x01 };
 	size_t i, len = utflen(s, n);
 
-	/* misencoded */
 	if (len == 0 || len > 6 || len > n) {
-		*r = 0;
+		*r = 0xfffd;  /* 'REPLACEMENT CHARACTER' */
 		return 1;
 	}
 
@@ -95,8 +95,12 @@ utftorune(long *r, char *s, size_t n)
 
 	/* overlong sequences */
 	if (runelen(*r) != len) {
-		*r = 0;
-		return 1;
+		*r = 0xfffd;  /* 'REPLACEMENT CHARACTER' */
+
+		/* There are 'len' continuation bytes after (we just checked it)
+		 * and these can not be the first byte, so we can immediately skip
+		 * them at once and return 'len'. */
+		return len;
 	}
 
 	return len;
@@ -104,10 +108,10 @@ utftorune(long *r, char *s, size_t n)
 
 
 /*
- * Convert the utf char sring `src` of size `n` to a long string
- * `dest`.
+ * Convert the utf char sring 'src' of size 'n' to a long string
+ * 'dest'.
  *
- * Return the length of `i`.
+ * Return the length of 'i'.
  */
 size_t
 utftorunes(long *runes, char *utf, size_t n)
