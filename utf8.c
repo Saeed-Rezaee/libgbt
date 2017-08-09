@@ -34,7 +34,7 @@
  * or 0 if ti is misencoded.
  */
 size_t
-utflen(char *s, int n)
+utf8len(char *s, int n)
 {
 	unsigned char *sp = (unsigned char *) s;
 	int i, len = (*sp < 0x80) ? 1 :  /* 0xxxxxxx < 10000000 */
@@ -62,7 +62,7 @@ utflen(char *s, int n)
  * 0 if rune is too long.
  */
 size_t
-runelen(long r)
+utf8runelen(long r)
 {
 	return (r <= 0x0000007f) ? 1 : (r <= 0x000007ff) ? 2 :
 	       (r <= 0x0000ffff) ? 3 : (r <= 0x001fffff) ? 4 :
@@ -76,10 +76,10 @@ runelen(long r)
  * Return the number of bytes read or 0 if the string is misencoded.
  */
 size_t
-utftorune(long *r, char *s, size_t n)
+utf8torune(long *r, char *s, size_t n)
 {
 	char mask[] = { 0x00, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
-	size_t i, len = utflen(s, n);
+	size_t i, len = utf8len(s, n);
 
 	if (len == 0 || len > 6 || len > n)
 		return 0;
@@ -92,7 +92,7 @@ utftorune(long *r, char *s, size_t n)
 		*r = (*r << 6) | (s[i] & 0x3f);  /* 10xxxxxx */
 
 	/* overlong sequences */
-	if (runelen(*r) != len)
+	if (utf8runelen(*r) != len)
 		return 0;
 
 	return len;
@@ -125,13 +125,13 @@ runeisunicode(long r)
  * code points.
  */
 int
-strcheck(char *s)
+utf8check(char *s)
 {
 	size_t len = strlen(s), shift;
 	long r = 0;
 
 	while (len > 0) {
-		shift = utftorune(&r, s, len);
+		shift = utf8torune(&r, s, len);
 		if (!shift || !runeisunicode(r))
 			return 0;
 

@@ -1,5 +1,5 @@
-size_t utflen(char *, int);
-size_t runelen(long);
-size_t utftorune(long *, char *, size_t);
-int runeisunicode(long);
-int strcheck(char *);
+size_t utf8len(char *, int);
+size_t utf8runelen(long);
+size_t utf8torune(long *, char *, size_t);
+int    utf8runeisunicode(long);
+int    utf8check(char *);
