@@ -32,23 +32,24 @@
  * or 0 if ti is misencoded.
  */
 size_t
-utflen(unsigned char *s, int n)
+utflen(char *s, int n)
 {
-	int i, len = (*s == 0xff) ? 0 :  /* 11111111 */
-	             (*s <= 0xfe) ? 7 :  /* 11111110  0xff - 0x01 */
-	             (*s <= 0xfd) ? 6 :  /* 1111110x  0xff - 0x02 */
-	             (*s <= 0xfb) ? 5 :  /* 111110xx  0xff - 0x04 */
-	             (*s <= 0xf7) ? 4 :  /* 11110xxx  0xff - 0x08 */
-	             (*s <= 0xef) ? 3 :  /* 1110xxxx  0xff - 0x10 */
-	             (*s <= 0xdf) ? 2 :  /* 110xxxxx  0xff - 0x20 */
-	             (*s <= 0xbf) ? 0 :  /* 10xxxxxx  0xff - 0x40 */
-	                            1;   /* 0xxxxxxx  0xff - 0x80 */
+	unsigned char *sp = (unsigned char) s;
+	int i, len = (*sp == 0xff) ? 0 :  /* 11111111 */
+	             (*sp <= 0xfe) ? 7 :  /* 11111110  0xff - 0x01 */
+	             (*sp <= 0xfd) ? 6 :  /* 1111110x  0xff - 0x02 */
+	             (*sp <= 0xfb) ? 5 :  /* 111110xx  0xff - 0x04 */
+	             (*sp <= 0xf7) ? 4 :  /* 11110xxx  0xff - 0x08 */
+	             (*sp <= 0xef) ? 3 :  /* 1110xxxx  0xff - 0x10 */
+	             (*sp <= 0xdf) ? 2 :  /* 110xxxxx  0xff - 0x20 */
+	             (*sp <= 0xbf) ? 0 :  /* 10xxxxxx  0xff - 0x40 */
+	                             1;   /* 0xxxxxxx  0xff - 0x80 */
 	if (len > n)
 		return 0;
 
 	/* check if continuation bytes are 10xxxxxx */
-	for (i = len; i > 0; i--, s++)
-		if (*s >= 0x80)
+	for (i = len; i > 0; i--, sp++)
+		if (*sp >= 0x80)
 			return 0;
 
 	return len;
@@ -74,9 +75,9 @@ runelen(long r)
  * Return the number of bytes read or 0 if the string is misencoded.
  */
 size_t
-utftorune(long *r, unsigned char *s, size_t n)
+utftorune(long *r, char *s, size_t n)
 {
-	unsigned char mask[] = { 0x00, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
+	char mask[] = { 0x00, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
 	size_t i, len = utflen(s, n);
 
 	/* misencoded */
@@ -109,7 +110,7 @@ utftorune(long *r, unsigned char *s, size_t n)
  * Return the length of `i`.
  */
 size_t
-utftorunes(long *runes, unsigned char *utf, size_t n)
+utftorunes(long *runes, char *utf, size_t n)
 {
 	size_t i, j;
 
@@ -127,7 +128,7 @@ utftorunes(long *runes, unsigned char *utf, size_t n)
  * Return the number of bytes written, 0 if 'r' is invalid.
  */
 size_t
-runetoutf(unsigned char *s, long r)
+runetoutf(char *s, long r)
 {
 	switch (runelen(r)) {
 	case 1:
