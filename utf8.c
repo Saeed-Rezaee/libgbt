@@ -45,14 +45,11 @@ utflen(char *s, int n)
 	             (*sp < 0xfe) ? 6 :  /* 1111110x < 11111110 */
 	             (*sp < 0xff) ? 7 :  /* 11111110 < 11111111 */
 	                            0;
-	if (len > n)
-		return 0;
-
-	printf("%d\n", len);
+	if (len > n) return 0;
 
 	/* check continuation bytes */
-	for (i = len; i > 0; i--, sp++)
-		if ((*sp & 0xc0) == 0x80)  /* 10xxxxxx & 11000000 */
+	for (sp++, i = len; i > 1; i--, sp++)
+		if ((*sp & 0xc0) != 0x80)  /* 10xxxxxx & 11000000 */
 			return 0;
 
 	return len;

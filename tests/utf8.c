@@ -9,7 +9,7 @@ void
 test_utflen(void)
 {
 	assert(utflen("asdf",             4) == 1);
-	assert(utflen("\xe0\x8f",         2) == 2);
+	assert(utflen("\xc0\x8f",         2) == 2);
 	assert(utflen("\xcf\x8f",         2) == 2);
 	assert(utflen("✓",     3) == 3);
 	assert(utflen("\xf0\xaf\xaf\xaf", 4) == 4);
