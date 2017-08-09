@@ -27,7 +27,7 @@ bencode(struct blist *head) {
 			sprintf(tmp, "i%de", np->number);
 			break;
 		case STRING:
-			sprintf(tmp, "%d:%s", strlen(np->string), np->string);
+			snprintf(tmp, 32, "%zu:%s", strlen(np->string), np->string);
 			break;
 		case DICTIONARY:
 		case LIST:
