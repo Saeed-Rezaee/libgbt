@@ -39,42 +39,25 @@ test_utftorune(void)
 	assert(r == 0x2713);
 
 	/* overlong sequence: */
-	utftorune(&r, "\xfc\x80\x80\x9c\x9c\x9c", 3);
-	assert(r == 0xfffd);
+	
+	assert(utftorune(&r, "\xfc\x80\x80\x9c\x9c\x9c", 3) == 0);
 }
 
 
 void
-test_runetoutf(void)
+test_strcheck(void)
 {
-	char s[8];
-	long r;
-	utftorune(&r, "\xE2\x9C\x93", 3);
-	assert(utflen("\x8c\x9c\x93",     3) == 0);
-	runetoutf(s, r);
-	assert(!strcmp(s, "\xE2\x9C\x93"));
+	assert(strcheck("ascii"));
+	assert(strcheck("\xcf\x81"));
+	assert(strcheck("⠇∀∂∈ℝ∧∪≡∞↑↗↨↻⇣┐┼╘░►☺♀ﬁ⑀₂ἠḂӥẄɐː⍎אԱა"));
+	assert(strcheck("‘“”„†•…‰™œŠŸž€ΑΒΓΔΩαβγδωАБВГДабвгд"));
+	assert(!strcheck("\x80"));       /* forbidden leading byte          */
+	assert(!strcheck("\xf0\x9f"));   /* not long enough                 */
+	assert(!strcheck("\xc0\xc0"));   /* invalid continuation byte       */
+	assert(!strcheck("\xc0\x81"));   /* overlong sequence               */
+	assert(!strcheck("\xff\x81\x81\x81\x81\x81\x81\x81"));  /* too many */
+	assert(!strcheck("\xf1\xc1"));   /* not enough                      */
 }
-
-
-void
-test_utf8(void)
-{
-	char s[1024], *sp = s;
-	long r[1024], *rp = r;
-	int i, l = 0;
-
-	while (fgets(s, 1024, stdin) != NULL) {
-		printf("len: %ld\n", strlen(s));
-		i = strlen(s);
-		for (rp = r, sp = s; i > 0 && *sp != '\0'; sp++, rp++, l++)
-			i -= utftorune(rp, sp, i);
-		for (sp = s, rp = r; l > 0;                sp++, rp++, l--)
-			runetoutf(sp, *rp);
-	}
-
-	fputs(s, stderr);
-}
-
 
 int
 main()
@@ -82,6 +65,6 @@ main()
 	test_utflen();
 	test_runelen();
 	test_utftorune();
-	test_runetoutf();
+	test_strcheck();
 	return 0;
 }

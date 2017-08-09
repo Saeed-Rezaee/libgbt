@@ -24,6 +24,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "utf8.h"
 
@@ -70,21 +71,18 @@ runelen(long r)
 
 
 /*
- * Sets 'r' to a rune corresponding to the firsts 'n' bytes of 's', or
- * 'REPLACEMENT CHARACTER' if the string is misencoded.
+ * Sets 'r' to a rune corresponding to the firsts 'n' bytes of 's'.
  *
- * Return the number of bytes read.
+ * Return the number of bytes read or 0 if the string is misencoded.
  */
 size_t
 utftorune(long *r, char *s, size_t n)
 {
-	char mask[] = { 0x00, 0x2f, 0x0f, 0x07, 0x03, 0x01 };
+	char mask[] = { 0x00, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
 	size_t i, len = utflen(s, n);
 
-	if (len == 0 || len > 6 || len > n) {
-		*r = 0xfffd;  /* 'REPLACEMENT CHARACTER' */
-		return 1;
-	}
+	if (len == 0 || len > 6 || len > n)
+		return 0;
 
 	/* first byte */
 	*r = *s & mask[len - 1];
@@ -94,105 +92,20 @@ utftorune(long *r, char *s, size_t n)
 		*r = (*r << 6) | (s[i] & 0x3f);  /* 10xxxxxx */
 
 	/* overlong sequences */
-	if (runelen(*r) != len) {
-		*r = 0xfffd;  /* 'REPLACEMENT CHARACTER' */
-
-		/* There are 'len' continuation bytes after (we just checked it)
-		 * and these can not be the first byte, so we can immediately skip
-		 * them at once and return 'len'. */
-		return len;
-	}
+	if (runelen(*r) != len)
+		return 0;
 
 	return len;
 }
 
 
 /*
- * Convert the utf char sring 'src' of size 'n' to a long string
- * 'dest'.
- *
- * Return the length of 'i'.
- */
-size_t
-utftorunes(long *runes, char *utf, size_t n)
-{
-	size_t i, j;
-
-	for (i = 0, j = 0; n > 0; i++, n++)
-		j += utftorune(runes + i, utf + j, n);
-
-	runes[i] = '\0';
-	return i;
-}
-
-
-/*
- * Encode the rune 'r' in utf-8 in 's`' null-terminated.
- *
- * Return the number of bytes written, 0 if 'r' is invalid.
- */
-size_t
-runetoutf(char *s, long r)
-{
-	switch (runelen(r)) {
-	case 1:
-		s[0] = r;                          /* 0xxxxxxx */
-		s[1] = '\0';
-		return 1;
-	case 2:
-		s[0] = 0xc0 | (0x1f & (r >> 6));   /* 110xxxxx */
-		s[1] = 0x80 | (0x3f & (r));        /* 10xxxxxx */
-		s[2] = '\0';
-		return 2;
-	case 3:
-		s[0] = 0xe0 | (0x0f & (r >> 12));  /* 1110xxxx */
-		s[1] = 0x80 | (0x3f & (r >> 6));   /* 10xxxxxx */
-		s[2] = 0x80 | (0x3f & (r));        /* 10xxxxxx */
-		s[3] = '\0';
-		return 3;
-	case 4:
-		s[0] = 0xf0 | (0x07 & (r >> 18));  /* 11110xxx */
-		s[1] = 0x80 | (0x3f & (r >> 12));  /* 10xxxxxx */
-		s[2] = 0x80 | (0x3f & (r >> 6));   /* 10xxxxxx */
-		s[3] = 0x80 | (0x3f & (r));        /* 10xxxxxx */
-		s[4] = '\0';
-		return 4;
-	case 5:
-		s[0] = 0xf8 | (0x03 & (r >> 24));  /* 111110xx */
-		s[1] = 0x80 | (0x3f & (r >> 18));  /* 10xxxxxx */
-		s[2] = 0x80 | (0x3f & (r >> 12));  /* 10xxxxxx */
-		s[3] = 0x80 | (0x3f & (r >> 6));   /* 10xxxxxx */
-		s[4] = 0x80 | (0x3f & (r));        /* 10xxxxxx */
-		s[5] = '\0';
-		return 5;
-	case 6:
-		s[0] = 0xfc | (0x01 & (r >> 30));  /* 1111110x */
-		s[1] = 0x80 | (0x3f & (r >> 24));  /* 10xxxxxx */
-		s[2] = 0x80 | (0x3f & (r >> 18));  /* 10xxxxxx */
-		s[3] = 0x80 | (0x3f & (r >> 12));  /* 10xxxxxx */
-		s[4] = 0x80 | (0x3f & (r >> 6));   /* 10xxxxxx */
-		s[5] = 0x80 | (0x3f & (r));        /* 10xxxxxx */
-		s[6] = '\0';
-		return 6;
-	default:
-		s[0] = '\0';
-		return 0;
-	}
-}
-
-
-/*
- * Returns 1 if the rune is a printable character and 0 if not.
+ * Returns 1 if the rune is a valid unicode code point and 0 if not.
  */
 int
-runeisprint(long r)
+runeisunicode(long r)
 {
 	return !(
-		(r != '\t' && r < ' ')           ||  /* ascii control */
-		(r == 0x7f)                      ||
-
-		(0x80 <= r && r < 0xa0)          ||  /* unicode control */
-
 		(r > 0x10ffff)                   ||  /* outside range */
 
 		((r & 0x00fffe) == 0x00fffe)     ||  /* noncharacters */
@@ -204,4 +117,27 @@ runeisprint(long r)
 
 		(0x00d800 <= r && r <= 0x00dfff)     /* surrogates */
 	);
+}
+
+
+/*
+ * Return 1 if '*s' is correctly encoded in UTF-8 with allowed Unicode
+ * code points.
+ */
+int
+strcheck(char *s)
+{
+	size_t len = strlen(s), shift;
+	long r = 0;
+
+	while (len > 0) {
+		shift = utftorune(&r, s, len);
+		if (!shift || !runeisunicode(r))
+			return 0;
+
+		s   += shift;
+		len -= shift;
+	}
+
+	return 1;
 }
