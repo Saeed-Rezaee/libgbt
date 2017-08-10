@@ -6,7 +6,6 @@
 #include <unistd.h>
 
 #include "queue.h"
-#include "config.h"
 #include "libgbt.h"
 
 static struct bdata * bparseint(FILE *);

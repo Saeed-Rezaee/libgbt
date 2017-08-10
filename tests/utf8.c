@@ -2,7 +2,7 @@
 #include <string.h>
 #include <assert.h>
 
-#include "../utf8.h"
+#include "utf8.h"
 
 
 void

@@ -5,7 +5,6 @@
 #include <string.h>
 
 #include "queue.h"
-#include "config.h"
 #include "libgbt.h"
 
 #define INPUT "april"

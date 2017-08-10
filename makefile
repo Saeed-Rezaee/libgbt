@@ -2,7 +2,7 @@ include config.mk
 
 all: libgbt.a
 libgbt.a: libgbt.o sha1.o
-libgbt.o: libgbt.c libgbt.h config.h
+libgbt.o: libgbt.c libgbt.h
 test: libgbt.a
 	make -C tests clean run
 
