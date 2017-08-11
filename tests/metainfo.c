@@ -3,7 +3,6 @@
 #include <string.h>
 
 #include "queue.h"
-#include "config.h"
 #include "libgbt.h"
 
 #define INPUT "i123e8:announceli2e3:fooed5:monthi4e4:name5:april7:shadockl2:ga2:bu2:zo3:meuee"
