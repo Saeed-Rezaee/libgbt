@@ -2,6 +2,7 @@ bencoding
 ---------
 * UTF-8 support for strings (josuah)
 * function to bencode() a structure (r4ndom)
+* fix up valgrind messages for uninitialized values
 
 pieces and blocks
 -----------------
