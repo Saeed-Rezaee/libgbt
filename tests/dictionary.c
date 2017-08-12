@@ -7,20 +7,18 @@
 #include "queue.h"
 #include "libgbt.h"
 
-#define INPUT "april"
+#define INPUT "d5:monthi4e4:name5:aprile"
 
 int
 main(int argc, char *argv[])
 {
-	char *OUTPUT = NULL;
+	struct bdata *OUTPUT = NULL;
         struct blist *head = NULL;
-	struct bdata *dict = NULL;
-        head = bdecode(stdin);
+        head = bdecode(INPUT, strlen(INPUT));
         assert(head != NULL);
-	dict = TAILQ_FIRST(head);
-        assert(dict->type == 'd');
-	OUTPUT = bsearchkey(dict->bl, "name")->str;
-	assert(!strcmp(INPUT, OUTPUT));
+	OUTPUT = bsearchkey(head, "name");
+	assert(OUTPUT != NULL);
+	assert(!strncmp("april", OUTPUT->str, OUTPUT->len));
         bfree(head);
 	return 0;
 }

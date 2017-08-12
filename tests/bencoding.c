@@ -12,7 +12,7 @@
 char *
 bencode(struct blist *head) {
 	char *out, *list;
-	char tmp[32] = { 0 };
+	char tmp[4096] = { 0 };
 	struct bdata *np = NULL;
 
 	out = malloc(sizeof(INPUT) + 1);
@@ -26,7 +26,8 @@ bencode(struct blist *head) {
 			sprintf(tmp, "i%de", np->num);
 			break;
 		case 's':
-			snprintf(tmp, 32, "%zu:%s", strlen(np->str), np->str);
+			sprintf(tmp, "%zu:", np->len);
+			snprintf(tmp + strlen(tmp), np->len + 1, "%s", np->str);
 			break;
 		case 'd':
 		case 'l':
@@ -45,9 +46,9 @@ bencode(struct blist *head) {
 int
 main(int argc, char *argv[])
 {
-	char *OUTPUT = NULL, *res = NULL;	
+	char *OUTPUT = NULL;
 	struct blist *head = NULL;
-	head = bdecode(stdin);
+	head = bdecode(INPUT, strlen(INPUT));
 	assert(head != NULL);
 	OUTPUT = bencode(head);
 	assert(strcmp(INPUT, OUTPUT) == 0);
