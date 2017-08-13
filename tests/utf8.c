@@ -37,6 +37,9 @@ test_utf8torune(void)
 	utf8torune(&r, "\xe2\x9c\x93", 3);
 	assert(r == 0x2713);
 
+	utf8torune(&r, "∀", 3);
+	assert(r == 0x2200);
+
 	/* overlong sequence: */
 	assert(utf8torune(&r, "\xfc\x80\x80\x9c\x9c\x9c", 3) == 0);
 }
@@ -45,26 +48,31 @@ test_utf8torune(void)
 void
 test_utf8check(void)
 {
-	char *strings[] = {
-		"ascii",
-		"\xcf\x81",
-		"⠇∀∂∈ℝ∧∪≡∞↑↗↨↻⇣┐┼╘░►☺♀ﬁ⑀₂ἠḂӥẄɐː⍎אԱა",
-		"‘“”„†•…‰™œŠŸž€ΑΒΓΔΩαβγδωАБВГДабвгд",
-		"\x80",                   /* forbidden leading byte          */
-		"\xf0\x9f",               /* not long enough                 */
-		"\xc0\xc0",               /* invalid continuation byte       */
-		"\xc0\x81",               /* overlong sequence               */
-		"\xff\x81\x81\x81\x81\x81\x81\x81",  /* too many             */
-		"\xf1\xc1",               /* not enough                      */
-	};
-	int success[] = { 1, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
-	int i, len    = sizeof success / sizeof (int);
+	/* valid UTF-8 */
+	assert(utf8check("ascii",                              4 ) == 1);
+	assert(utf8check("\xcf\x81",                           2 ) == 1);
+	assert(utf8check("⠇∀∂∈ℝ∧∪≡∞↑↗↨↻⇣┐┼╘░►☺♀ﬁ⑀₂ἠḂӥẄɐː⍎אԱა", 97) == 1);
+	assert(utf8check("‘“”„†•…‰™œŠŸž€ΑΒΓΔΩαβγδωАБВГДабвгд", 78) == 1);
 
-	for (i = 0; i < len; i++) {
-		printf("%d ", i);
-		assert(utf8check(strings[i], sizeof strings[i]) == success[i]);
-	}
+	/* forbidden leading byte */
+	assert(utf8check("\x80",                               1 ) == 0);
+
+	/* not long enough */
+	assert(utf8check("\xf0\x9f",                           2 ) == 0);
+
+	/* invalid continuation byte */
+	assert(utf8check("\xc0\xc0",                           2 ) == 0);
+
+	/* overlong sequence */
+	assert(utf8check("\xc0\x81",                           2 ) == 0);
+
+	/* too many */
+	assert(utf8check("\xff\x81\x81\x81\x81\x81\x81\x81",   8 ) == 0);
+
+	/* not enough */
+	assert(utf8check("\xf1\xc1",                           2 ) == 0);
 }
+
 
 int
 main()

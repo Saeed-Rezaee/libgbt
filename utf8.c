@@ -48,7 +48,7 @@ utf8len(char *s, int n)
 	if (len > n) return 0;
 
 	/* check continuation bytes */
-	for (sp++, i = len; i > 1; i--, sp++)
+	for (sp++, i = 1; i < len; i++, sp++)
 		if ((*sp & 0xc0) != 0x80)  /* 10xxxxxx & 11000000 */
 			return 0;
 
@@ -84,11 +84,11 @@ utf8torune(long *r, char *s, size_t n)
 		return 0;
 
 	/* first byte */
-	*r = *s & mask[len - 1];
+	*r = *s++ & mask[len - 1];
 
 	/* continuation bytes */
 	for (i = 1; i < len; i++)
-		*r = (*r << 6) | (s[i] & 0x3f);  /* 10xxxxxx */
+		*r = (*r << 6) | (*s++ & 0x3f);  /* 10xxxxxx */
 
 	/* overlong sequences */
 	if (utf8runelen(*r) != len)
