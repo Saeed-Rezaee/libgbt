@@ -24,7 +24,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 
 #include "utf8.h"
 
@@ -78,7 +77,7 @@ utf8runelen(long r)
 size_t
 utf8torune(long *r, char *s, size_t n)
 {
-	char mask[] = { 0x00, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
+	char mask[] = { 0x7f, 0x1f, 0x0f, 0x07, 0x03, 0x01 };
 	size_t i, len = utf8len(s, n);
 
 	if (len == 0 || len > 6 || len > n)
@@ -103,7 +102,7 @@ utf8torune(long *r, char *s, size_t n)
  * Returns 1 if the rune is a valid unicode code point and 0 if not.
  */
 int
-runeisunicode(long r)
+utf8runeisunicode(long r)
 {
 	return !(
 		(r > 0x10ffff)                   ||  /* outside range */
@@ -125,14 +124,14 @@ runeisunicode(long r)
  * code points.
  */
 int
-utf8check(char *s)
+utf8check(char *s, size_t len)
 {
-	size_t len = strlen(s), shift;
+	size_t shift;
 	long r = 0;
 
 	while (len > 0) {
 		shift = utf8torune(&r, s, len);
-		if (!shift || !runeisunicode(r))
+		if (!shift || !utf8runeisunicode(r))
 			return 0;
 
 		s   += shift;
