@@ -225,6 +225,31 @@ bsearchkey(const struct blist *bl, const char *key)
 	return NULL;
 }
 
+static int
+bcountlist(const struct blist *bl)
+{
+	int n = 0;
+	struct bdata *np;
+
+	TAILQ_FOREACH(np, bl, entries)
+		n++;
+
+	return n;
+}
+
+static size_t
+bpathfmt(const struct blist *bl, char *path)
+{
+	struct bdata *np;
+
+	TAILQ_FOREACH(np, bl, entries) {
+		path[strlen(path)] = '/';
+		strncat(path, np->str, np->len);
+	}
+
+	return strlen(path);
+}
+
 static char *
 metaurl(const struct blist *bl)
 {
