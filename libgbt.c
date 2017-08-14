@@ -192,7 +192,7 @@ bfree(struct blist *bl)
  * can be called for each element of the "files" list.
  */
 struct bdata *
-bsearchkey(struct blist *bl, const char *key)
+bsearchkey(const struct blist *bl, const char *key)
 {
 	struct bdata *np;
 	if (key == NULL) return NULL;

@@ -25,4 +25,4 @@ struct torrent {
 
 int bfree(struct blist *);
 struct blist * bdecode(char *, size_t);
-struct bdata * bsearchkey(struct blist *, const char *);
+struct bdata * bsearchkey(const struct blist *, const char *);
