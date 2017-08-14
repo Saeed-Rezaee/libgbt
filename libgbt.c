@@ -264,6 +264,37 @@ metaurl(const struct blist *bl)
 	return url;
 }
 
+static struct file *
+metafiles(const struct blist *bl)
+{
+	int i = 0;
+	char name[PATH_MAX];
+	struct bdata *np;
+	struct blist *head;
+	struct file *files;
+
+	np = bsearchkey(bl, "name");
+	memset(name, 0, PATH_MAX);
+	memcpy(name, np->str, MIN(np->len, PATH_MAX - 1));
+
+	np = bsearchkey(bl, "files");
+	if (np) { /* multi-file torrent */
+		head = np->bl;
+		files = malloc(sizeof(struct file) * bcountlist(head));
+		TAILQ_FOREACH(np, head, entries) {
+			files[i].len  = bsearchkey(np->bl, "length")->num;
+			memcpy(files[i].path, name, strlen(name));
+			bpathfmt(bsearchkey(np->bl, "path")->bl, files[i].path);
+			i++;
+		}
+	} else { /* single-file torrent */
+		files = malloc(sizeof(struct file));
+		files[0].len = bsearchkey(bl, "length")->num;
+		strcpy(files[0].path, name);
+	}
+	return files;
+}
+
 struct torrent *
 metainfo(const char *path)
 {
@@ -284,6 +315,7 @@ metainfo(const char *path)
 	meta = bdecode(buf, sb.st_size);
 
 	to->url = metaurl(meta);
+	to->files = metafiles(meta);
 
 	bfree(meta);
 	free(buf);
