@@ -6,14 +6,25 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+
 #include "queue.h"
 #include "libgbt.h"
+
+#define MIN(a,b) ((a)<(b)?(a):(b))
+#define MAX(a,b) ((a)>(b)?(a):(b))
 
 static int isnum(char);
 static char * bparseint(struct blist *, char *, size_t);
 static char * bparsestr(struct blist *, char *, size_t);
 static char * bparselnd(struct blist *, char *, size_t);
 static char * bparseany(struct blist *, char *, size_t);
+
+static int bcountlist(const struct blist *);
+static size_t bpathfmt(const struct blist *, char *);
+static char * metaurl(const struct blist *);
+static struct file * metafiles(const struct blist *);
 
 static int
 isnum(char c) {
@@ -212,4 +223,29 @@ bsearchkey(const struct blist *bl, const char *key)
 
 	}
 	return NULL;
+}
+
+struct torrent *
+metainfo(const char *path)
+{
+	char *buf = NULL;
+	FILE *f   = NULL;
+	struct stat sb;
+	struct blist *meta;
+	struct torrent *to;
+
+	stat(path, &sb);
+	f = fopen(path, "r");
+	buf = malloc(sb.st_size);
+	to = malloc(sizeof(struct torrent));
+
+	fread(buf, 1, sb.st_size, f);
+	fclose(f);
+
+	meta = bdecode(buf, sb.st_size);
+
+	bfree(meta);
+	free(buf);
+
+	return to;
 }
