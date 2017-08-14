@@ -1,3 +1,5 @@
+#include <limits.h>
+
 /* structure defining _ANY_ type of bencoding data */
 struct bdata {
 	char type;
@@ -13,7 +15,7 @@ struct torrent {
 	char *url;
 	uint8_t *bits;
 	struct file {
-		char *path;
+		char path[PATH_MAX];
 		size_t len;
 	} *files;
 	struct piece {
