@@ -2,13 +2,19 @@ bencoding
 ---------
 * UTF-8 support for strings (josuah)
 * function to bencode() a structure (r4ndom)
-* fix up valgrind messages for uninitialized values
 
 pieces and blocks
 -----------------
-* add blocks to pieces
 * calculate SHA1 for a piece
+* convert binary SHA1 to hexadecimal
+* add blocks to pieces
 * write pieces to files
+
+metainfo
+--------
+* write wrappers around bencoding functions
+* check metainfo file content
+* load metainfo in memory
 
 overall
 -------
@@ -20,6 +26,5 @@ overall
 
 RFC parts to implement
 ----------------------
-* metainfo
 * tracker HTTP protocol
 * peer wire protocol
