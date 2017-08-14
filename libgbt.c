@@ -23,7 +23,7 @@ static char * bparseany(struct blist *, char *, size_t);
 
 static int bcountlist(const struct blist *);
 static size_t bpathfmt(const struct blist *, char *);
-static char * metaurl(const struct blist *);
+static char * metastr(const struct blist *, const char *);
 static struct file * metafiles(const struct blist *);
 
 static int
@@ -251,12 +251,12 @@ bpathfmt(const struct blist *bl, char *path)
 }
 
 static char *
-metaurl(const struct blist *bl)
+metastr(const struct blist *bl, const char *key)
 {
 	char *url;
 	struct bdata *np = NULL;
 
-	np = bsearchkey(bl, "announce");
+	np = bsearchkey(bl, key);
 	url = malloc(np->len + 1);
 	url[np->len] = 0;
 	memcpy(url, np->str, np->len);
@@ -314,7 +314,7 @@ metainfo(const char *path)
 
 	meta = bdecode(buf, sb.st_size);
 
-	to->url = metaurl(meta);
+	to->url = metastr(meta, "announce");
 	to->files = metafiles(meta);
 
 	bfree(meta);
