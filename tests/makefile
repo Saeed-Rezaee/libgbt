@@ -7,6 +7,6 @@ TESTS = bencoding \
 	utf8
 
 run: $(TESTS)
-	@for test in $(TESTS); do echo TEST $$test | tr a-z A-Z; ./$$test < $$test.input; done
+	@for test in $(TESTS); do echo TEST $$test | tr a-z A-Z; ./$$test; done
 clean:
 	rm -f $(TESTS) *.o
