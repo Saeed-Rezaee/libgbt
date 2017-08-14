@@ -225,6 +225,20 @@ bsearchkey(const struct blist *bl, const char *key)
 	return NULL;
 }
 
+static char *
+metaurl(const struct blist *bl)
+{
+	char *url;
+	struct bdata *np = NULL;
+
+	np = bsearchkey(bl, "announce");
+	url = malloc(np->len + 1);
+	url[np->len] = 0;
+	memcpy(url, np->str, np->len);
+
+	return url;
+}
+
 struct torrent *
 metainfo(const char *path)
 {
@@ -243,6 +257,8 @@ metainfo(const char *path)
 	fclose(f);
 
 	meta = bdecode(buf, sb.st_size);
+
+	to->url = metaurl(meta);
 
 	bfree(meta);
 	free(buf);
