@@ -40,7 +40,6 @@ bparseint(struct blist *bl, char *buf, size_t len)
 	if (!np)
 		return NULL;
 
-
 	while (*p != 'e' && p < buf + len) {
 		if (*p == '-') {
 			n = -1;
@@ -106,10 +105,8 @@ bparselnd(struct blist *bl, char *buf, size_t len)
 		return NULL;
 	TAILQ_INIT(np->bl);
 
-	while (*p != 'e' && p < buf + len) {
-		p = bparseany(np->bl, p, len - (size_t)(p - buf));
-		p++;
-	}
+	while (*p != 'e' && p < buf + len)
+		p = bparseany(np->bl, p, len - (size_t)(p - buf)) + 1;
 
 	np->type = *buf;
 	TAILQ_INSERT_TAIL(bl, np, entries);
