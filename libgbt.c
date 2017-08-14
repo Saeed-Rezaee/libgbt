@@ -73,6 +73,7 @@ bparsestr(struct blist *bl, char *buf, size_t len)
 	if (!np)
 		return NULL;
 
+	np->len = 0;
 	while (*p != ':' && p < (buf + len)) {
 		np->len *= 10;
 		np->len += *p++ - '0';
