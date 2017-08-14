@@ -10,10 +10,10 @@
 #include "libgbt.h"
 
 static int isnum(char);
-static char * bparseint(struct blist *, char *buf, size_t len);
-static char * bparsestr(struct blist *, char *buf, size_t len);
-static char * bparselnd(struct blist *, char *buf, size_t len);
-static char * bparseany(struct blist *, char *buf, size_t len);
+static char * bparseint(struct blist *, char *, size_t);
+static char * bparsestr(struct blist *, char *, size_t);
+static char * bparselnd(struct blist *, char *, size_t);
+static char * bparseany(struct blist *, char *, size_t);
 
 static int
 isnum(char c) {
