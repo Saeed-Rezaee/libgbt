@@ -268,14 +268,16 @@ static struct file *
 metafiles(const struct blist *bl)
 {
 	int i = 0;
+	size_t namelen = 0;
 	char name[PATH_MAX];
 	struct bdata *np;
 	struct blist *head;
 	struct file *files;
 
 	np = bsearchkey(bl, "name");
+	namelen = np->len;
 	memset(name, 0, PATH_MAX);
-	memcpy(name, np->str, MIN(np->len, PATH_MAX - 1));
+	memcpy(name, np->str, MIN(namelen, PATH_MAX - 1));
 
 	np = bsearchkey(bl, "files");
 	if (np) { /* multi-file torrent */
@@ -283,7 +285,8 @@ metafiles(const struct blist *bl)
 		files = malloc(sizeof(struct file) * bcountlist(head));
 		TAILQ_FOREACH(np, head, entries) {
 			files[i].len  = bsearchkey(np->bl, "length")->num;
-			memcpy(files[i].path, name, strlen(name));
+			memset(files[i].path, 0, PATH_MAX);
+			memcpy(files[i].path, name, namelen);
 			bpathfmt(bsearchkey(np->bl, "path")->bl, files[i].path);
 			i++;
 		}
