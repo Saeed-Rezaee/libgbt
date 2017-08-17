@@ -14,6 +14,7 @@ TAILQ_HEAD(blist, bdata);
 struct torrent {
 	char *url;
 	uint8_t *bits;
+	size_t filnum;
 	struct file {
 		char path[PATH_MAX];
 		size_t len;

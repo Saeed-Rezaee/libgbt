@@ -24,6 +24,7 @@ static char * bparseany(struct blist *, char *, size_t);
 static int bcountlist(const struct blist *);
 static size_t bpathfmt(const struct blist *, char *);
 static char * metastr(const struct blist *, const char *);
+static size_t metafilnum(const struct blist *);
 static struct file * metafiles(const struct blist *);
 
 static int
@@ -298,6 +299,17 @@ metafiles(const struct blist *bl)
 	return files;
 }
 
+static size_t
+metafilnum(const struct blist *bl)
+{
+	struct bdata *np;
+	np = bsearchkey(bl, "files");
+	if (np) /* multi-file torrent */
+		return bcountlist(np->bl);
+
+	return 1;
+}
+
 struct torrent *
 metainfo(const char *path)
 {
@@ -319,6 +331,7 @@ metainfo(const char *path)
 
 	to->url = metastr(meta, "announce");
 	to->files = metafiles(meta);
+	to->filnum = metafilnum(meta);
 
 	bfree(meta);
 	free(buf);
