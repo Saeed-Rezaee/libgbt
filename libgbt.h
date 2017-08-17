@@ -27,7 +27,22 @@ struct torrent {
 	} *pieces;
 };
 
+struct peer {
+	uint8_t id[20];
+	uint8_t info[20];
+	uint8_t port;
+	long dl;
+	long ul;
+	long left;
+	enum {
+		EVSTART,
+		EVSTOP,
+		EVOVER
+	} ev;
+};
+
 int bfree(struct blist *);
 struct blist * bdecode(char *, size_t);
 struct bdata * bsearchkey(const struct blist *, const char *);
+
 struct torrent * metainfo(const char *);
