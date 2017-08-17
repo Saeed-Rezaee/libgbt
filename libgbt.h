@@ -19,6 +19,7 @@ struct torrent {
 		char path[PATH_MAX];
 		size_t len;
 	} *files;
+	size_t pcsnum;
 	struct piece {
 		uint8_t sha1[20];
 		uint8_t *data;

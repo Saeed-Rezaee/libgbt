@@ -26,6 +26,8 @@ static size_t bpathfmt(const struct blist *, char *);
 static char * metastr(const struct blist *, const char *);
 static size_t metafilnum(const struct blist *);
 static struct file * metafiles(const struct blist *);
+static size_t metapcsnum(const struct blist *, const struct file *, const size_t);
+static struct piece * metapieces(const struct blist *, const struct file *, const size_t);
 
 static int
 isnum(char c) {
@@ -310,6 +312,44 @@ metafilnum(const struct blist *bl)
 	return 1;
 }
 
+static size_t
+metapcsnum(const struct blist *bl, const struct file *fl, const size_t fn)
+{
+	size_t i, flen, plen;
+
+	plen = bsearchkey(bl, "piece length")->num;
+	for (i = 0, flen = 0; i < fn; i++)
+		flen += fl[i].len;
+
+	return flen/plen + !!(flen%plen);
+}
+
+static struct piece *
+metapieces(const struct blist *bl, const struct file *fl, const size_t fn)
+{
+	size_t i, len, plen, pnum, tmp = 0;
+	struct piece *pieces;
+	struct bdata *np;
+
+	for (i = 0; i < fn; i++)
+		len += fl[i].len;
+
+	plen = bsearchkey(bl, "piece length")->num;
+	pnum = metapcsnum(bl, fl, fn);
+	np = bsearchkey(bl, "pieces");
+	pieces = malloc(sizeof(struct piece) * pnum);
+
+	for (i = 0; i < pnum; i++) {
+		pieces[i].len = (len - tmp < plen) ? len - tmp : plen;
+		tmp += pieces[i].len;
+		memcpy(pieces[i].sha1, np->str + (i*20), 20);
+		pieces[i].data = malloc(pieces[i].len);
+		memset(pieces[i].data, 0, pieces[i].len);
+	}
+
+	return pieces;
+}
+
 struct torrent *
 metainfo(const char *path)
 {
@@ -332,6 +372,8 @@ metainfo(const char *path)
 	to->url = metastr(meta, "announce");
 	to->files = metafiles(meta);
 	to->filnum = metafilnum(meta);
+	to->pieces = metapieces(meta, to->files, to->filnum);
+	to->pcsnum = metapcsnum(meta, to->files, to->filnum);
 
 	bfree(meta);
 	free(buf);
