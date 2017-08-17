@@ -24,10 +24,8 @@ static char * bparseany(struct blist *, char *, size_t);
 static int bcountlist(const struct blist *);
 static size_t bpathfmt(const struct blist *, char *);
 static char * metastr(const struct blist *, const char *);
-static size_t metafilnum(const struct blist *);
-static struct file * metafiles(const struct blist *);
-static size_t metapcsnum(const struct blist *, const struct file *, const size_t);
-static struct piece * metapieces(const struct blist *, const struct file *, const size_t);
+static size_t metafiles(const struct blist *, struct torrent *);
+static size_t metapieces(const struct blist *, struct torrent *);
 
 static int
 isnum(char c) {
@@ -267,15 +265,14 @@ metastr(const struct blist *bl, const char *key)
 	return url;
 }
 
-static struct file *
-metafiles(const struct blist *bl)
+static size_t
+metafiles(const struct blist *bl, struct torrent *to)
 {
 	int i = 0;
 	size_t namelen = 0;
 	char name[PATH_MAX];
 	struct bdata *np;
 	struct blist *head;
-	struct file *files;
 
 	np = bsearchkey(bl, "name");
 	namelen = np->len;
@@ -285,69 +282,47 @@ metafiles(const struct blist *bl)
 	np = bsearchkey(bl, "files");
 	if (np) { /* multi-file torrent */
 		head = np->bl;
-		files = malloc(sizeof(struct file) * bcountlist(head));
+		to->filnum = bcountlist(head);
+		to->files = malloc(sizeof(struct file) * bcountlist(head));
 		TAILQ_FOREACH(np, head, entries) {
-			files[i].len  = bsearchkey(np->bl, "length")->num;
-			memset(files[i].path, 0, PATH_MAX);
-			memcpy(files[i].path, name, namelen);
-			bpathfmt(bsearchkey(np->bl, "path")->bl, files[i].path);
+			to->files[i].len  = bsearchkey(np->bl, "length")->num;
+			memset(to->files[i].path, 0, PATH_MAX);
+			memcpy(to->files[i].path, name, namelen);
+			bpathfmt(bsearchkey(np->bl, "path")->bl, to->files[i].path);
 			i++;
 		}
 	} else { /* single-file torrent */
-		files = malloc(sizeof(struct file));
-		files[0].len = bsearchkey(bl, "length")->num;
-		strcpy(files[0].path, name);
+		to->files = malloc(sizeof(struct file));
+		to->files[0].len = bsearchkey(bl, "length")->num;
+		strcpy(to->files[0].path, name);
+		to->filnum = 1;
 	}
-	return files;
+	return to->filnum;
 }
 
 static size_t
-metafilnum(const struct blist *bl)
+metapieces(const struct blist *bl, struct torrent *to)
 {
-	struct bdata *np;
-	np = bsearchkey(bl, "files");
-	if (np) /* multi-file torrent */
-		return bcountlist(np->bl);
-
-	return 1;
-}
-
-static size_t
-metapcsnum(const struct blist *bl, const struct file *fl, const size_t fn)
-{
-	size_t i, flen, plen;
-
-	plen = bsearchkey(bl, "piece length")->num;
-	for (i = 0, flen = 0; i < fn; i++)
-		flen += fl[i].len;
-
-	return flen/plen + !!(flen%plen);
-}
-
-static struct piece *
-metapieces(const struct blist *bl, const struct file *fl, const size_t fn)
-{
-	size_t i, len, plen, pnum, tmp = 0;
-	struct piece *pieces;
+	size_t i, len, plen, tmp = 0;
 	struct bdata *np;
 
-	for (i = 0; i < fn; i++)
-		len += fl[i].len;
+	for (i = 0; i < to->filnum; i++)
+		len += to->files[i].len;
 
 	plen = bsearchkey(bl, "piece length")->num;
-	pnum = metapcsnum(bl, fl, fn);
 	np = bsearchkey(bl, "pieces");
-	pieces = malloc(sizeof(struct piece) * pnum);
+	to->pcsnum = len/plen + !!(len/plen);
+	to->pieces = malloc(sizeof(struct piece) * to->pcsnum);
 
-	for (i = 0; i < pnum; i++) {
-		pieces[i].len = (len - tmp < plen) ? len - tmp : plen;
-		tmp += pieces[i].len;
-		memcpy(pieces[i].sha1, np->str + (i*20), 20);
-		pieces[i].data = malloc(pieces[i].len);
-		memset(pieces[i].data, 0, pieces[i].len);
+	for (i = 0; i < to->pcsnum; i++) {
+		to->pieces[i].len = (len - tmp < plen) ? len - tmp : plen;
+		tmp += to->pieces[i].len;
+		memcpy(to->pieces[i].sha1, np->str + (i*20), 20);
+		to->pieces[i].data = malloc(to->pieces[i].len);
+		memset(to->pieces[i].data, 0, to->pieces[i].len);
 	}
 
-	return pieces;
+	return to->pcsnum;
 }
 
 struct torrent *
@@ -370,10 +345,8 @@ metainfo(const char *path)
 	meta = bdecode(buf, sb.st_size);
 
 	to->url = metastr(meta, "announce");
-	to->files = metafiles(meta);
-	to->filnum = metafilnum(meta);
-	to->pieces = metapieces(meta, to->files, to->filnum);
-	to->pcsnum = metapcsnum(meta, to->files, to->filnum);
+	metafiles(meta, to);
+	metapieces(meta, to);
 
 	bfree(meta);
 	free(buf);
