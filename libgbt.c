@@ -16,6 +16,7 @@
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
 static int isnum(char);
+static uint8_t * tohex(uint8_t *, uint8_t *, size_t);
 static char * bparseint(struct blist *, char *, size_t);
 static char * bparsestr(struct blist *, char *, size_t);
 static char * bparselnd(struct blist *, char *, size_t);
@@ -30,6 +31,23 @@ static size_t metapieces(const struct blist *, struct torrent *);
 static int
 isnum(char c) {
 	return (c >= '0' && c <= '9');
+}
+
+static uint8_t *
+tohex(uint8_t *in, uint8_t *out, size_t len)
+{
+	uint8_t a, b;
+	size_t i, j;
+
+	memset(out, 0, len*2 + 1);
+	for (i=0, j=0; i<len; i++, j++) {
+		a = (in[i] & 244)>>4;
+		b = (in[i] & 15);
+		out[j]   = a > 9 ? a + 'a' - 10 : a + '0';
+		out[++j] = b > 9 ? b + 'a' - 10 : b + '0';
+	}
+
+	return out;
 }
 
 static char *
