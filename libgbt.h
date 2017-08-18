@@ -6,12 +6,15 @@ struct bdata {
 	size_t len;
 	long num;
 	char *str;
+	char *s;
+	char *e;
 	struct blist *bl;
 	TAILQ_ENTRY(bdata) entries;
 };
 TAILQ_HEAD(blist, bdata);
 
 struct torrent {
+	char *buf;
 	char *url;
 	uint8_t *bits;
 	size_t filnum;
@@ -25,6 +28,7 @@ struct torrent {
 		uint8_t *data;
 		size_t len;
 	} *pieces;
+	struct blist *meta;
 };
 
 struct peer {

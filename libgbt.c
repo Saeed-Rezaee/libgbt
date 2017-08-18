@@ -67,6 +67,8 @@ bparseint(struct blist *bl, char *buf, size_t len)
 
 	np->type = 'i';
 	np->num = n;
+	np->s = buf;
+	np->e = p;
 	TAILQ_INSERT_TAIL(bl, np, entries);
 	return p;
 }
@@ -92,6 +94,8 @@ bparsestr(struct blist *bl, char *buf, size_t len)
 
 	np->str = ++p;
 	np->type = 's';
+	np->s = buf;
+	np->e = p + np->len - 1;
 	TAILQ_INSERT_TAIL(bl, np, entries);
 	return p + np->len - 1;
 }
@@ -121,6 +125,8 @@ bparselnd(struct blist *bl, char *buf, size_t len)
 		p = bparseany(np->bl, p, len - (size_t)(p - buf)) + 1;
 
 	np->type = *buf;
+	np->s = buf;
+	np->e = p;
 	TAILQ_INSERT_TAIL(bl, np, entries);
 	return p;
 }
@@ -328,28 +334,23 @@ metapieces(const struct blist *bl, struct torrent *to)
 struct torrent *
 metainfo(const char *path)
 {
-	char *buf = NULL;
 	FILE *f   = NULL;
 	struct stat sb;
-	struct blist *meta;
 	struct torrent *to;
 
 	stat(path, &sb);
 	f = fopen(path, "r");
-	buf = malloc(sb.st_size);
 	to = malloc(sizeof(struct torrent));
 
-	fread(buf, 1, sb.st_size, f);
+	to->buf = malloc(sb.st_size);
+	fread(to->buf, 1, sb.st_size, f);
 	fclose(f);
 
-	meta = bdecode(buf, sb.st_size);
+	to->meta = bdecode(to->buf, sb.st_size);
 
-	to->url = metastr(meta, "announce");
-	metafiles(meta, to);
-	metapieces(meta, to);
-
-	bfree(meta);
-	free(buf);
+	to->url = metastr(to->meta, "announce");
+	metafiles(to->meta, to);
+	metapieces(to->meta, to);
 
 	return to;
 }
