@@ -31,11 +31,12 @@ struct torrent {
 	uint8_t peerid[20];
 	uint8_t infohash[20];
 	uint8_t *bitfield;
+	uint8_t *pieces;
 	size_t size;
 	size_t filnum;
 	size_t pcsnum;
+	size_t piecelen;
 	struct file *files;
-	struct piece *pieces;
 };
 
 int bfree(struct blist *);

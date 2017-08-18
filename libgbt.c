@@ -338,24 +338,9 @@ metafiles(struct torrent *to)
 static size_t
 metapieces(struct torrent *to)
 {
-	size_t i, len, plen, tmp = 0;
-	struct bdata *np;
-
-	for (i = 0; i < to->filnum; i++)
-		len += to->files[i].len;
-
-	plen = bsearchkey(to->meta, "piece length")->num;
-	np = bsearchkey(to->meta, "pieces");
-	to->pcsnum = len/plen + !!(len/plen);
-	to->pieces = malloc(sizeof(struct piece) * to->pcsnum);
-
-	for (i = 0; i < to->pcsnum; i++) {
-		to->pieces[i].len = (len - tmp < plen) ? len - tmp : plen;
-		tmp += to->pieces[i].len;
-		memcpy(to->pieces[i].sha1, np->str + (i*20), 20);
-		to->pieces[i].data = malloc(to->pieces[i].len);
-		memset(to->pieces[i].data, 0, to->pieces[i].len);
-	}
+	to->pieces = (uint8_t *)bsearchkey(to->meta, "pieces")->s;
+	to->piecelen = bsearchkey(to->meta, "piece length")->num;
+	to->pcsnum = to->size/to->piecelen + !!(to->size%to->piecelen);
 
 	return to->pcsnum;
 }
