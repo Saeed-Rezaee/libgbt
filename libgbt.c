@@ -25,9 +25,10 @@ static char * bparseany(struct blist *, char *, size_t);
 
 static int bcountlist(const struct blist *);
 static size_t bpathfmt(const struct blist *, char *);
-static char * metastr(const struct blist *, const char *);
-static size_t metafiles(const struct blist *, struct torrent *);
-static size_t metapieces(const struct blist *, struct torrent *);
+static size_t metainfohash(struct torrent *);
+static size_t metaannounce(struct torrent *);
+static size_t metafiles(struct torrent *);
+static size_t metapieces(struct torrent *);
 
 static int
 isnum(char c) {
@@ -276,22 +277,29 @@ bpathfmt(const struct blist *bl, char *path)
 	return strlen(path);
 }
 
-static char *
-metastr(const struct blist *bl, const char *key)
+static size_t
+metainfohash(struct torrent *to)
 {
-	char *url;
 	struct bdata *np = NULL;
 
-	np = bsearchkey(bl, key);
-	url = malloc(np->len + 1);
-	url[np->len] = 0;
-	memcpy(url, np->str, np->len);
-
-	return url;
+	np = bsearchkey(to->meta, "info");
+	return sha1((unsigned char *)np->s, np->e - np->s + 1, to->infohash);
 }
 
 static size_t
-metafiles(const struct blist *bl, struct torrent *to)
+metaannounce(struct torrent *to)
+{
+	struct bdata *np = NULL;
+
+	np = bsearchkey(to->meta, "announce");
+	memset(to->announce, 0, PATH_MAX);
+	memcpy(to->announce, np->str, np->len);
+
+	return np->len;
+}
+
+static size_t
+metafiles(struct torrent *to)
 {
 	int i = 0;
 	size_t namelen = 0;
@@ -299,12 +307,12 @@ metafiles(const struct blist *bl, struct torrent *to)
 	struct bdata *np;
 	struct blist *head;
 
-	np = bsearchkey(bl, "name");
+	np = bsearchkey(to->meta, "name");
 	namelen = np->len;
 	memset(name, 0, PATH_MAX);
 	memcpy(name, np->str, MIN(namelen, PATH_MAX - 1));
 
-	np = bsearchkey(bl, "files");
+	np = bsearchkey(to->meta, "files");
 	if (np) { /* multi-file torrent */
 		head = np->bl;
 		to->filnum = bcountlist(head);
@@ -318,7 +326,7 @@ metafiles(const struct blist *bl, struct torrent *to)
 		}
 	} else { /* single-file torrent */
 		to->files = malloc(sizeof(struct file));
-		to->files[0].len = bsearchkey(bl, "length")->num;
+		to->files[0].len = bsearchkey(to->meta, "length")->num;
 		strcpy(to->files[0].path, name);
 		to->filnum = 1;
 	}
@@ -326,7 +334,7 @@ metafiles(const struct blist *bl, struct torrent *to)
 }
 
 static size_t
-metapieces(const struct blist *bl, struct torrent *to)
+metapieces(struct torrent *to)
 {
 	size_t i, len, plen, tmp = 0;
 	struct bdata *np;
@@ -334,8 +342,8 @@ metapieces(const struct blist *bl, struct torrent *to)
 	for (i = 0; i < to->filnum; i++)
 		len += to->files[i].len;
 
-	plen = bsearchkey(bl, "piece length")->num;
-	np = bsearchkey(bl, "pieces");
+	plen = bsearchkey(to->meta, "piece length")->num;
+	np = bsearchkey(to->meta, "pieces");
 	to->pcsnum = len/plen + !!(len/plen);
 	to->pieces = malloc(sizeof(struct piece) * to->pcsnum);
 
@@ -367,9 +375,10 @@ metainfo(const char *path)
 
 	to->meta = bdecode(to->buf, sb.st_size);
 
-	to->url = metastr(to->meta, "announce");
-	metafiles(to->meta, to);
-	metapieces(to->meta, to);
+	metainfohash(to);
+	metaannounce(to);
+	metafiles(to);
+	metapieces(to);
 
 	return to;
 }
