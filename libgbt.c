@@ -43,8 +43,8 @@ tohex(uint8_t *in, uint8_t *out, size_t len)
 
 	memset(out, 0, len*2 + 1);
 	for (i=0, j=0; i<len; i++, j++) {
-		a = (in[i] & 244)>>4;
-		b = (in[i] & 15);
+		a = in[i] >> 4;
+		b = in[i] & 15;
 		out[j]   = a > 9 ? a + 'a' - 10 : a + '0';
 		out[++j] = b > 9 ? b + 'a' - 10 : b + '0';
 	}
