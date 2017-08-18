@@ -13,36 +13,28 @@ struct bdata {
 };
 TAILQ_HEAD(blist, bdata);
 
-struct torrent {
-	char *buf;
-	char *url;
-	uint8_t *bits;
-	size_t filnum;
-	struct file {
-		char path[PATH_MAX];
-		size_t len;
-	} *files;
-	size_t pcsnum;
-	struct piece {
-		uint8_t sha1[20];
-		uint8_t *data;
-		size_t len;
-	} *pieces;
-	struct blist *meta;
+struct file {
+	char path[PATH_MAX];
+	size_t len;
 };
 
-struct peer {
-	uint8_t id[20];
-	uint8_t info[20];
-	uint8_t port;
-	long dl;
-	long ul;
-	long left;
-	enum {
-		EVSTART,
-		EVSTOP,
-		EVOVER
-	} ev;
+struct piece {
+	uint8_t sha1[20];
+	uint8_t *data;
+	size_t len;
+};
+
+struct torrent {
+	char announce[PATH_MAX];
+	char *buf;
+	struct blist *meta;
+	uint8_t peerid[20];
+	uint8_t infohash[20];
+	uint8_t *bitfield;
+	size_t filnum;
+	size_t pcsnum;
+	struct file *files;
+	struct piece *pieces;
 };
 
 int bfree(struct blist *);
