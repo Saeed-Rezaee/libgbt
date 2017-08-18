@@ -60,7 +60,7 @@ bparseint(struct blist *bl, char *buf, size_t len)
 			n += *p - '0';
 		} else {
 			free(np);
-			errx(1, "invalid character\n");
+			errx(1, "'%c': invalid character\n", *p);
 		}
 		p++;
 	}
