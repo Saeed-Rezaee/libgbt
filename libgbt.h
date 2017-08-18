@@ -31,6 +31,7 @@ struct torrent {
 	uint8_t peerid[20];
 	uint8_t infohash[20];
 	uint8_t *bitfield;
+	size_t size;
 	size_t filnum;
 	size_t pcsnum;
 	struct file *files;

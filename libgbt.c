@@ -312,6 +312,7 @@ metafiles(struct torrent *to)
 	memset(name, 0, PATH_MAX);
 	memcpy(name, np->str, MIN(namelen, PATH_MAX - 1));
 
+	to->size = 0;
 	np = bsearchkey(to->meta, "files");
 	if (np) { /* multi-file torrent */
 		head = np->bl;
@@ -319,6 +320,7 @@ metafiles(struct torrent *to)
 		to->files = malloc(sizeof(struct file) * bcountlist(head));
 		TAILQ_FOREACH(np, head, entries) {
 			to->files[i].len  = bsearchkey(np->bl, "length")->num;
+			to->size += to->files[i].len;
 			memset(to->files[i].path, 0, PATH_MAX);
 			memcpy(to->files[i].path, name, namelen);
 			bpathfmt(bsearchkey(np->bl, "path")->bl, to->files[i].path);
