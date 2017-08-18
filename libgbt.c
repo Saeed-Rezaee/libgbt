@@ -373,17 +373,3 @@ metainfo(const char *path)
 
 	return to;
 }
-
-struct peer *
-thpinit(const struct torrent *to)
-{
-	struct peer *p;
-	struct bdata *np;
-
-	p = malloc(sizeof(struct peer));
-
-	np = bsearchkey(to->meta, "info");
-	sha1((unsigned char *)np->s, np->e - np->s + 1, p->info);
-
-	return p;
-}

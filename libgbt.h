@@ -42,4 +42,3 @@ struct blist * bdecode(char *, size_t);
 struct bdata * bsearchkey(const struct blist *, const char *);
 
 struct torrent * metainfo(const char *);
-struct peer * thpinit(const struct torrent *);
