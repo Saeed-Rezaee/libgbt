@@ -341,6 +341,8 @@ metapieces(struct torrent *to)
 	to->pieces = (uint8_t *)bsearchkey(to->meta, "pieces")->s;
 	to->piecelen = bsearchkey(to->meta, "piece length")->num;
 	to->pcsnum = to->size/to->piecelen + !!(to->size%to->piecelen);
+	to->bitfield = malloc(to->pcsnum / sizeof(uint8_t));
+	memset(to->bitfield, 0, to->pcsnum / sizeof(uint8_t));
 
 	return to->pcsnum;
 }
