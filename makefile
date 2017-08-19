@@ -1,7 +1,7 @@
 include config.mk
 
 all: libgbt.a
-libgbt.a: libgbt.a(libgbt.o) libgbt.a(sha1.o) libgbt.a(utf8.o)
+libgbt.a: libgbt.a(libgbt.o) libgbt.a(sha1.o) libgbt.a(utf8.o) libgbt.a(http.o)
 libgbt.o: libgbt.c libgbt.h
 test: libgbt.a
 	make -C tests clean run
