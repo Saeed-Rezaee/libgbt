@@ -17,7 +17,9 @@
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
 static int isnum(char);
-static uint8_t * tohex(uint8_t *, uint8_t *, size_t);
+static char * tohex(uint8_t *, char *, size_t);
+static char * tostr(char *, size_t);
+static char * urlencode(uint8_t *, size_t);
 static char * bparseint(struct blist *, char *, size_t);
 static char * bparsestr(struct blist *, char *, size_t);
 static char * bparselnd(struct blist *, char *, size_t);
@@ -35,18 +37,53 @@ isnum(char c) {
 	return (c >= '0' && c <= '9');
 }
 
-static uint8_t *
-tohex(uint8_t *in, uint8_t *out, size_t len)
+static char *
+tohex(uint8_t *in, char *out, size_t len)
 {
-	uint8_t a, b;
 	size_t i, j;
+	char hex[] = "0123456789ABCDEF";
 
 	memset(out, 0, len*2 + 1);
 	for (i=0, j=0; i<len; i++, j++) {
-		a = in[i] >> 4;
-		b = in[i] & 15;
-		out[j]   = a > 9 ? a + 'a' - 10 : a + '0';
-		out[++j] = b > 9 ? b + 'a' - 10 : b + '0';
+		out[j]   = hex[in[i] >> 4];
+		out[++j] = hex[in[i] & 15];
+	}
+
+	return out;
+}
+
+static char *
+tostr(char *in, size_t len)
+{
+	static char s[LINE_MAX];
+
+	memcpy(s, in, MIN(len, LINE_MAX));
+	s[MIN(len, LINE_MAX)] = 0;
+
+	return s;
+}
+
+static char *
+urlencode(uint8_t *in, size_t len)
+{
+	size_t i, j;
+	char *out;
+
+	out = malloc(len * 3);
+	memset(out, 0, len * 3);
+
+	for (i = 0, j = 0; i < len; i++) {
+		if ((in[i] <= '0' && in[i] >= '9') ||
+		    (in[i] <= 'A' && in[i] >= 'Z') ||
+		    (in[i] <= 'a' && in[i] >= 'z') ||
+		    (in[i] == '-' || in[i] == '_'  ||
+		     in[i] == '.' || in[i] == '~')) {
+			out[j++] = in[i];
+		} else {
+			out[j++] = '%';
+			tohex(in + i, out + j, 1);
+			j += 2;
+		}
 	}
 
 	return out;
