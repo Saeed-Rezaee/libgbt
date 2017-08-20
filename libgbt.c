@@ -1,13 +1,18 @@
 #include <err.h>
 #include <limits.h>
+#include <netdb.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#include <sys/types.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include "queue.h"
 #include "sha1.h"
@@ -31,6 +36,9 @@ static size_t metainfohash(struct torrent *);
 static size_t metaannounce(struct torrent *);
 static size_t metafiles(struct torrent *);
 static size_t metapieces(struct torrent *);
+
+static size_t bstr2peer(struct torrent *, char *, size_t);
+static size_t blist2peer(struct torrent *, struct blist *);
 
 static int
 isnum(char c) {
@@ -400,6 +408,10 @@ metainfo(const char *path)
 	fclose(f);
 
 	to->meta = bdecode(to->buf, sb.st_size);
+	to->upload = 0;
+	to->download = 0;
+	memcpy(to->peerid, PEERID, 20);
+	to->peerid[20] = 0;
 
 	metainfohash(to);
 	metaannounce(to);
@@ -407,4 +419,112 @@ metainfo(const char *path)
 	metapieces(to);
 
 	return to;
+}
+
+static size_t
+blist2peer(struct torrent *to, struct blist *peers)
+{
+	size_t i = 0;
+	struct bdata *np, *tmp;
+
+	to->peernum = bcountlist(peers);
+	to->peers = malloc(to->peernum * sizeof(struct peer));
+	if (!to->peers)
+		return -1;
+
+	TAILQ_FOREACH(np, peers, entries) {
+		to->peers[i].choked = 1;
+		to->peers[i].interrested = 0;
+		to->peers[i].peer.sin_family = AF_INET;
+
+		tmp = bsearchkey(np->bl, "port");
+		to->peers[i].peer.sin_port = tmp->num;
+
+		tmp = bsearchkey(np->bl, "ip");
+		inet_pton(AF_INET, tostr(tmp->str, tmp->len), &to->peers[i].peer.sin_addr);
+		i++;
+	}
+
+	return to->peernum;
+}
+
+static size_t
+bstr2peer(struct torrent *to, char *peers, size_t len)
+{
+	size_t i;
+
+	if (len % 6)
+		errx(1, "%zu: Not a multiple of 6", len);
+
+	to->peernum = len/6;
+	to->peers = malloc(to->peernum * sizeof(struct peer));
+	if (!to->peers)
+		return -1;
+
+	for (i = 0; i < len/6; i++) {
+		to->peers[i].choked = 1;
+		to->peers[i].interrested = 0;
+		to->peers[i].bitfield = malloc(to->pcsnum / sizeof(uint8_t));
+		to->peers[i].peer.sin_family      = AF_INET;
+		memcpy(&to->peers[i].peer.sin_port, &peers[i*6] + 4, 2);
+		memcpy(&to->peers[i].peer.sin_addr, &peers[i*6], 4);
+	}
+
+	return to->peernum;
+}
+
+int
+getpeers(struct torrent *to)
+{
+	int len, ret;
+	char  url[PATH_MAX] = {0};
+	char *buf = NULL;
+	struct blist *reply = NULL;
+	struct bdata *peers = NULL;
+
+	snprintf(url, PATH_MAX,
+		"%s?peer_id=%s&info_hash=%s&port=%d"
+		"&uploaded=%zu&downloaded=%zu&left=%zu&event=%s&compact=1",
+		to->announce, to->peerid, urlencode(to->infohash, 20), 65537, to->upload, to->download, to->size, "started");
+
+	/*
+        len = httpget(url, &buf, &ret);
+	if (len < 0) {
+		printf("%d: %s", ret, httperror[ret]);
+		return -1;
+	}
+	*
+	* Until the HTTP API is working, always fail.
+	* Following code has been tested with another lib, and it's
+	* working. Focus is now on http.c
+	*/
+	return -1;
+
+	reply = bdecode(buf, len);
+	if (!reply)
+		return -1;
+
+	peers = bsearchkey(reply, "failure reason");
+	if (peers) {
+		errx(1, "%s: %s", to->announce, tostr(peers->str, peers->len));
+	}
+
+	peers = bsearchkey(reply, "peers");
+	if (!peers)
+		return -1;
+
+	to->peers = malloc(sizeof(struct peers *));
+
+	switch (peers->type) {
+	case 's':
+		bstr2peer(to, peers->str, peers->len);
+		break;
+	case 'l':
+		blist2peer(to, peers->bl);
+		break;
+	default:
+		errx(1, "'%c': Unsupported type for peers", peers->type);
+	}
+
+	return to->peernum;
 }

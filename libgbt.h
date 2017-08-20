@@ -3,6 +3,8 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+#define PEERID "LIBGRIZZLYBITTORRENT"
+
 /* structure defining _ANY_ type of bencoding data */
 struct bdata {
 	char type;
@@ -58,3 +60,4 @@ struct blist * bdecode(char *, size_t);
 struct bdata * bsearchkey(const struct blist *, const char *);
 
 struct torrent * metainfo(const char *);
+int getpeers(struct torrent *);
