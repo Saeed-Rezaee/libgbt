@@ -21,10 +21,13 @@
 #define MIN(a,b) ((a)<(b)?(a):(b))
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
-static int isnum(char);
+static void * emalloc(size_t);
+
+static int    isnum(char);
 static char * tohex(uint8_t *, char *, size_t);
 static char * tostr(char *, size_t);
 static char * urlencode(uint8_t *, size_t);
+
 static char * bparseint(struct blist *, char *, size_t);
 static char * bparsestr(struct blist *, char *, size_t);
 static char * bparselnd(struct blist *, char *, size_t);
@@ -39,6 +42,18 @@ static size_t metapieces(struct torrent *);
 
 static size_t bstr2peer(struct torrent *, char *, size_t);
 static size_t blist2peer(struct torrent *, struct blist *);
+
+static void *
+emalloc(size_t s)
+{
+	void *p = NULL;
+	p = malloc(s);
+	if (!p)
+		err(1, "malloc");
+
+	memset(p, 0, s);
+	return p;
+}
 
 static int
 isnum(char c) {
@@ -77,8 +92,7 @@ urlencode(uint8_t *in, size_t len)
 	size_t i, j;
 	char *out;
 
-	out = malloc(len * 3);
-	memset(out, 0, len * 3);
+	out = emalloc(len * 3);
 
 	for (i = 0, j = 0; i < len; i++) {
 		if ((in[i] <= '0' && in[i] >= '9') ||
@@ -113,7 +127,7 @@ bparseint(struct blist *bl, char *buf, size_t len)
 	if (*p == '-' && (isnum(*p+1) && *p+1 > '0'))
 		errx(1, "invalid negative number\n");
 
-	np = malloc(sizeof(struct bdata));
+	np = emalloc(sizeof(*np));
 	if (!np)
 		return NULL;
 
@@ -147,7 +161,7 @@ bparsestr(struct blist *bl, char *buf, size_t len)
 	if (!isnum(buf[0]))
 		errx(1, "not a string\n");
 
-	np = malloc(sizeof(struct bdata));
+	np = emalloc(sizeof(*np));
 	if (!np)
 		return NULL;
 
@@ -177,13 +191,9 @@ bparselnd(struct blist *bl, char *buf, size_t len)
 	if (*++p == 'e')
 		errx(1, "dictionary or list empty\n");
 
-	np = malloc(sizeof(struct bdata));
-	if (!np)
-		return NULL;
+	np = emalloc(sizeof(*np));
+	np->bl = emalloc(sizeof(*np->bl));
 
-	np->bl = malloc(sizeof(struct blist));
-	if (!np->bl)
-		return NULL;
 	TAILQ_INIT(np->bl);
 
 	while (*p != 'e' && p < buf + len)
@@ -226,12 +236,9 @@ bdecode(char *buf, size_t len)
 	size_t s = len;
 	struct blist *bl = NULL;
 
-	bl = malloc(sizeof(struct blist));
-	if (!bl)
-		return NULL;
+	bl = emalloc(sizeof(*bl));
 
 	TAILQ_INIT(bl);
-
 	while (s > 1) {
 		p = bparseany(bl, p, s);
 		s = len - (p - buf);
@@ -362,7 +369,7 @@ metafiles(struct torrent *to)
 	if (np) { /* multi-file torrent */
 		head = np->bl;
 		to->filnum = bcountlist(head);
-		to->files = malloc(sizeof(struct file) * bcountlist(head));
+		to->files = emalloc(sizeof(*to->files) * bcountlist(head));
 		TAILQ_FOREACH(np, head, entries) {
 			to->files[i].len  = bsearchkey(np->bl, "length")->num;
 			to->size += to->files[i].len;
@@ -372,7 +379,7 @@ metafiles(struct torrent *to)
 			i++;
 		}
 	} else { /* single-file torrent */
-		to->files = malloc(sizeof(struct file));
+		to->files = emalloc(sizeof(*to->files));
 		to->files[0].len = bsearchkey(to->meta, "length")->num;
 		strcpy(to->files[0].path, name);
 		to->filnum = 1;
@@ -386,8 +393,7 @@ metapieces(struct torrent *to)
 	to->pieces = (uint8_t *)bsearchkey(to->meta, "pieces")->s;
 	to->piecelen = bsearchkey(to->meta, "piece length")->num;
 	to->pcsnum = to->size/to->piecelen + !!(to->size%to->piecelen);
-	to->bitfield = malloc(to->pcsnum / sizeof(uint8_t));
-	memset(to->bitfield, 0, to->pcsnum / sizeof(uint8_t));
+	to->bitfield = emalloc(to->pcsnum / sizeof(*to->bitfield));
 
 	return to->pcsnum;
 }
@@ -401,9 +407,9 @@ metainfo(const char *path)
 
 	stat(path, &sb);
 	f = fopen(path, "r");
-	to = malloc(sizeof(struct torrent));
+	to = emalloc(sizeof(*to));
 
-	to->buf = malloc(sb.st_size);
+	to->buf = emalloc(sb.st_size);
 	fread(to->buf, 1, sb.st_size, f);
 	fclose(f);
 
@@ -428,7 +434,7 @@ blist2peer(struct torrent *to, struct blist *peers)
 	struct bdata *np, *tmp;
 
 	to->peernum = bcountlist(peers);
-	to->peers = malloc(to->peernum * sizeof(struct peer));
+	to->peers = emalloc(to->peernum * sizeof(*to->peers));
 	if (!to->peers)
 		return -1;
 
@@ -457,14 +463,14 @@ bstr2peer(struct torrent *to, char *peers, size_t len)
 		errx(1, "%zu: Not a multiple of 6", len);
 
 	to->peernum = len/6;
-	to->peers = malloc(to->peernum * sizeof(struct peer));
+	to->peers = emalloc(to->peernum * sizeof(*to->peers));
 	if (!to->peers)
 		return -1;
 
 	for (i = 0; i < len/6; i++) {
 		to->peers[i].choked = 1;
 		to->peers[i].interrested = 0;
-		to->peers[i].bitfield = malloc(to->pcsnum / sizeof(uint8_t));
+		to->peers[i].bitfield = emalloc(to->pcsnum / sizeof(to->peers[i].bitfield));
 		to->peers[i].peer.sin_family      = AF_INET;
 		memcpy(&to->peers[i].peer.sin_port, &peers[i*6] + 4, 2);
 		memcpy(&to->peers[i].peer.sin_addr, &peers[i*6], 4);
@@ -513,7 +519,7 @@ getpeers(struct torrent *to)
 	if (!peers)
 		return -1;
 
-	to->peers = malloc(sizeof(struct peers *));
+	to->peers = emalloc(sizeof(*to->peers));
 
 	switch (peers->type) {
 	case 's':
