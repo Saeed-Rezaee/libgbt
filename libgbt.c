@@ -12,6 +12,7 @@
 #include <sys/types.h>
 
 #include <arpa/inet.h>
+#include <curl/curl.h>
 #include <netinet/in.h>
 
 #include "queue.h"
@@ -20,6 +21,11 @@
 
 #define MIN(a,b) ((a)<(b)?(a):(b))
 #define MAX(a,b) ((a)>(b)?(a):(b))
+
+struct buffer {
+	char  *b;
+	size_t s;
+};
 
 static void * emalloc(size_t);
 
@@ -479,41 +485,50 @@ bstr2peer(struct torrent *to, char *peers, size_t len)
 	return to->peernum;
 }
 
+static size_t
+curlwrite(void *p, size_t s, size_t n, struct buffer *d)
+{
+	d->b = realloc(d->b, d->s + s*n);
+	memcpy(d->b + d->s, p, s*n);
+	d->s += s*n;
+	return d->s;
+}
+
 int
 getpeers(struct torrent *to)
 {
-	ssize_t len = 0;
 	char  url[PATH_MAX] = {0};
-	char *buf = NULL;
+	struct buffer data;
 	struct blist *reply = NULL;
 	struct bdata *peers = NULL;
+	CURL *c;
+	CURLcode r;
+
+	c = curl_easy_init();
+	if (!c)
+		return -1;
 
 	snprintf(url, PATH_MAX,
 		"%s?peer_id=%s&info_hash=%s&port=%d"
 		"&uploaded=%zu&downloaded=%zu&left=%zu&event=%s&compact=1",
-		to->announce, to->peerid, urlencode(to->infohash, 20), 65537, to->upload, to->download, to->size, "started");
+		to->announce, to->peerid, urlencode(to->infohash, 20), 65537,
+		to->upload, to->download, to->size, "started");
 
-	/*
-        len = httpget(url, &buf, &ret);
-	if (len < 0) {
-		printf("%d: %s", ret, httperror[ret]);
-		return -1;
-	}
-	*
-	* Until the HTTP API is working, always fail.
-	* Following code has been tested with another lib, and it's
-	* working. Focus is now on http.c
-	*/
-	return -1;
+	curl_easy_setopt(c, CURLOPT_URL, url);
+	curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, curlwrite);
+	curl_easy_setopt(c, CURLOPT_WRITEDATA, &data);
 
-	reply = bdecode(buf, len);
+	r = curl_easy_perform(c);
+	if (r != CURLE_OK)
+		errx(1, "%s", curl_easy_strerror(r));
+
+	reply = bdecode(data.b, data.s);
 	if (!reply)
-		return -1;
+		return 1;
 
 	peers = bsearchkey(reply, "failure reason");
-	if (peers) {
+	if (peers)
 		errx(1, "%s: %s", to->announce, tostr(peers->str, peers->len));
-	}
 
 	peers = bsearchkey(reply, "peers");
 	if (!peers)
