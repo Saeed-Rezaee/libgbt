@@ -51,6 +51,7 @@ static size_t bstr2peer(struct torrent *, char *, size_t);
 static size_t blist2peer(struct torrent *, struct blist *);
 
 static int thpsend(struct torrent *, char *, struct blist *);
+static int peersend(struct peer *, uint8_t *, size_t);
 
 static void *
 emalloc(size_t s)
@@ -543,7 +544,7 @@ getpeers(struct torrent *to)
 	struct blist reply;
 	struct bdata *peers = NULL;
 
-	if (thpsend(to, "started", &reply))
+	if (thpsend(to, "started", &reply) < 0)
 		return -1;
 
 	if (!(peers = bsearchkey(&reply, "peers")))
@@ -562,4 +563,38 @@ getpeers(struct torrent *to)
 	}
 
 	return to->peernum;
+}
+
+static int
+peersend(struct peer *p, uint8_t *msg, size_t len)
+{
+	return send(p->sockfd, msg, len, 0);
+}
+
+int
+pwphandshake(struct torrent *to, off_t n)
+{
+	off_t off = 0;
+	uint8_t msg[68];
+	struct peer *p;
+
+	msg[off++] = 19;
+	memcpy(msg + off, "BitTorrent protocol", 19);
+	off += 19;
+	off += 8;
+	memcpy(msg + off, to->infohash, 20);
+	off += 20;
+	memcpy(msg + off, PEERID, 20);
+	off += 20;
+
+	p = &to->peers[n];
+
+	p->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (p->sockfd < 0)
+		err(1, "socket");
+
+	if (connect(p->sockfd, (struct sockaddr *)&p->peer, sizeof(p->peer)))
+		return -1;
+
+	return peersend(p, msg, 68);
 }

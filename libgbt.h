@@ -30,6 +30,7 @@ struct piece {
 };
 
 struct peer {
+	int sockfd;
 	uint8_t choked;
 	uint8_t interrested;
 	uint8_t *bitfield;
@@ -61,3 +62,4 @@ struct bdata * bsearchkey(const struct blist *, const char *);
 
 struct torrent * metainfo(const char *);
 int getpeers(struct torrent *);
+int pwphandshake(struct torrent *to, off_t n);
