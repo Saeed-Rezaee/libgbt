@@ -50,6 +50,8 @@ static size_t metapieces(struct torrent *);
 static size_t bstr2peer(struct torrent *, char *, size_t);
 static size_t blist2peer(struct torrent *, struct blist *);
 
+static int thpsend(struct torrent *, char *, struct blist *);
+
 static void *
 emalloc(size_t s)
 {
@@ -495,7 +497,7 @@ curlwrite(char *ptr, size_t size, size_t nmemb, struct buffer *userdata)
 	return userdata->siz;
 }
 
-int
+static int
 thpsend(struct torrent *to, char *ev, struct blist *reply)
 {
 	char  url[PATH_MAX] = {0};
@@ -528,7 +530,11 @@ thpsend(struct torrent *to, char *ev, struct blist *reply)
 	if (np)
 		errx(1, "%s: %s", to->announce, tostr(np->str, np->len));
 
-	return 0;
+	np = bsearchkey(reply, "interval");
+	if (!np)
+		errx(1, "Missing key 'interval'");
+
+	return np->num;
 }
 
 int
