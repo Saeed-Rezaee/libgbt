@@ -476,7 +476,7 @@ bstr2peer(struct torrent *to, char *peers, size_t len)
 int
 getpeers(struct torrent *to)
 {
-	int len, ret;
+	ssize_t len = 0;
 	char  url[PATH_MAX] = {0};
 	char *buf = NULL;
 	struct blist *reply = NULL;
