@@ -3,7 +3,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
-#define PEERID "LIBGRIZZLYBITTORRENT"
+#define PEERID "-GT0000-000000000000"
 
 /* structure defining _ANY_ type of bencoding data */
 struct bdata {
