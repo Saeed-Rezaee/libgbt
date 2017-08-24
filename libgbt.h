@@ -39,7 +39,7 @@ struct peer {
 struct torrent {
 	char announce[PATH_MAX];
 	char *buf;
-	struct blist *meta;
+	struct blist meta;
 	uint8_t peerid[21];
 	uint8_t infohash[20];
 	uint8_t *bitfield;
@@ -56,7 +56,7 @@ struct torrent {
 };
 
 int bfree(struct blist *);
-struct blist * bdecode(char *, size_t);
+int bdecode(char *, size_t, struct blist *);
 struct bdata * bsearchkey(const struct blist *, const char *);
 
 struct torrent * metainfo(const char *);

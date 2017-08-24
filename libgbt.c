@@ -236,14 +236,14 @@ bparseany(struct blist *bl, char *buf, size_t len)
 	return buf;
 }
 
-struct blist *
-bdecode(char *buf, size_t len)
+int
+bdecode(char *buf, size_t len, struct blist *bl)
 {
 	char *p = buf;
 	size_t s = len;
-	struct blist *bl = NULL;
 
-	bl = emalloc(sizeof(*bl));
+	if (!bl)
+		return -1;
 
 	TAILQ_INIT(bl);
 	while (s > 1) {
@@ -252,7 +252,7 @@ bdecode(char *buf, size_t len)
 		p++;
 	}
 
-	return bl;
+	return 0;
 }
 
 int
@@ -341,7 +341,7 @@ metainfohash(struct torrent *to)
 {
 	struct bdata *np = NULL;
 
-	np = bsearchkey(to->meta, "info");
+	np = bsearchkey(&to->meta, "info");
 	return sha1((unsigned char *)np->s, np->e - np->s + 1, to->infohash);
 }
 
@@ -350,7 +350,7 @@ metaannounce(struct torrent *to)
 {
 	struct bdata *np = NULL;
 
-	np = bsearchkey(to->meta, "announce");
+	np = bsearchkey(&to->meta, "announce");
 	memset(to->announce, 0, PATH_MAX);
 	memcpy(to->announce, np->str, np->len);
 
@@ -366,13 +366,13 @@ metafiles(struct torrent *to)
 	struct bdata *np;
 	struct blist *head;
 
-	np = bsearchkey(to->meta, "name");
+	np = bsearchkey(&to->meta, "name");
 	namelen = np->len;
 	memset(name, 0, PATH_MAX);
 	memcpy(name, np->str, MIN(namelen, PATH_MAX - 1));
 
 	to->size = 0;
-	np = bsearchkey(to->meta, "files");
+	np = bsearchkey(&to->meta, "files");
 	if (np) { /* multi-file torrent */
 		head = np->bl;
 		to->filnum = bcountlist(head);
@@ -387,7 +387,7 @@ metafiles(struct torrent *to)
 		}
 	} else { /* single-file torrent */
 		to->files = emalloc(sizeof(*to->files));
-		to->files[0].len = bsearchkey(to->meta, "length")->num;
+		to->files[0].len = bsearchkey(&to->meta, "length")->num;
 		strcpy(to->files[0].path, name);
 		to->filnum = 1;
 	}
@@ -397,8 +397,8 @@ metafiles(struct torrent *to)
 static size_t
 metapieces(struct torrent *to)
 {
-	to->pieces = (uint8_t *)bsearchkey(to->meta, "pieces")->s;
-	to->piecelen = bsearchkey(to->meta, "piece length")->num;
+	to->pieces = (uint8_t *)bsearchkey(&to->meta, "pieces")->s;
+	to->piecelen = bsearchkey(&to->meta, "piece length")->num;
 	to->pcsnum = to->size/to->piecelen + !!(to->size%to->piecelen);
 	to->bitfield = emalloc(to->pcsnum / sizeof(*to->bitfield));
 
@@ -420,7 +420,7 @@ metainfo(const char *path)
 	fread(to->buf, 1, sb.st_size, f);
 	fclose(f);
 
-	to->meta = bdecode(to->buf, sb.st_size);
+	bdecode(to->buf, sb.st_size, &to->meta);
 	to->upload = 0;
 	to->download = 0;
 	memcpy(to->peerid, PEERID, 20);
@@ -496,7 +496,7 @@ curlwrite(char *ptr, size_t size, size_t nmemb, struct buffer *userdata)
 }
 
 int
-thpsend(struct torrent *to, char *ev, struct blist **reply)
+thpsend(struct torrent *to, char *ev, struct blist *reply)
 {
 	char  url[PATH_MAX] = {0};
 	struct buffer b;
@@ -523,8 +523,8 @@ thpsend(struct torrent *to, char *ev, struct blist **reply)
 	if (r != CURLE_OK)
 		errx(1, "%s", curl_easy_strerror(r));
 
-	*reply = bdecode(b.buf, b.siz);
-	np = bsearchkey(*reply, "failure reason");
+	bdecode(b.buf, b.siz, reply);
+	np = bsearchkey(reply, "failure reason");
 	if (np)
 		errx(1, "%s: %s", to->announce, tostr(np->str, np->len));
 
@@ -534,13 +534,13 @@ thpsend(struct torrent *to, char *ev, struct blist **reply)
 int
 getpeers(struct torrent *to)
 {
-	struct blist *reply = NULL;
+	struct blist reply;
 	struct bdata *peers = NULL;
 
 	if (thpsend(to, "started", &reply))
 		return -1;
 
-	if (!(peers = bsearchkey(reply, "peers")))
+	if (!(peers = bsearchkey(&reply, "peers")))
 		return -1;
 
 	to->peers = emalloc(sizeof(*to->peers));
