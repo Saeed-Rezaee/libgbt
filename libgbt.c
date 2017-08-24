@@ -23,11 +23,12 @@
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
 struct buffer {
-	char  *b;
-	size_t s;
+	char  *buf;
+	size_t siz;
 };
 
 static void * emalloc(size_t);
+static size_t curlwrite(char *, size_t, size_t, struct buffer *);
 
 static int    isnum(char);
 static char * tohex(uint8_t *, char *, size_t);
@@ -486,21 +487,20 @@ bstr2peer(struct torrent *to, char *peers, size_t len)
 }
 
 static size_t
-curlwrite(void *p, size_t s, size_t n, struct buffer *d)
+curlwrite(char *ptr, size_t size, size_t nmemb, struct buffer *userdata)
 {
-	d->b = realloc(d->b, d->s + s*n);
-	memcpy(d->b + d->s, p, s*n);
-	d->s += s*n;
-	return d->s;
+	userdata->buf = realloc(userdata->buf, userdata->siz + size*nmemb);
+	memcpy(userdata->buf + userdata->siz, ptr, size*nmemb);
+	userdata->siz += size*nmemb;
+	return userdata->siz;
 }
 
 int
-getpeers(struct torrent *to)
+thpsend(struct torrent *to, char *ev, struct blist **reply)
 {
 	char  url[PATH_MAX] = {0};
-	struct buffer data;
-	struct blist *reply = NULL;
-	struct bdata *peers = NULL;
+	struct buffer b;
+	struct bdata *np = NULL;
 	CURL *c;
 	CURLcode r;
 
@@ -510,32 +510,40 @@ getpeers(struct torrent *to)
 
 	snprintf(url, PATH_MAX,
 		"%s?peer_id=%s&info_hash=%s&port=%d"
-		"&uploaded=%zu&downloaded=%zu&left=%zu&event=%s&compact=1",
-		to->announce, to->peerid, urlencode(to->infohash, 20), 65537,
-		to->upload, to->download, to->size, "started");
+		"&uploaded=%zu&downloaded=%zu&left=%zu"
+		"%s%s&compact=1",
+		to->announce, to->peerid, urlencode(to->infohash, 20), 65535,
+		to->upload, to->download, to->size,
+		(ev ? "&event=" : ""), (ev ? ev : ""));
 
 	curl_easy_setopt(c, CURLOPT_URL, url);
 	curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, curlwrite);
-	curl_easy_setopt(c, CURLOPT_WRITEDATA, &data);
-
+	curl_easy_setopt(c, CURLOPT_WRITEDATA, &b);
 	r = curl_easy_perform(c);
 	if (r != CURLE_OK)
 		errx(1, "%s", curl_easy_strerror(r));
 
-	reply = bdecode(data.b, data.s);
-	if (!reply)
-		return 1;
+	*reply = bdecode(b.buf, b.siz);
+	np = bsearchkey(*reply, "failure reason");
+	if (np)
+		errx(1, "%s: %s", to->announce, tostr(np->str, np->len));
 
-	peers = bsearchkey(reply, "failure reason");
-	if (peers)
-		errx(1, "%s: %s", to->announce, tostr(peers->str, peers->len));
+	return 0;
+}
 
-	peers = bsearchkey(reply, "peers");
-	if (!peers)
+int
+getpeers(struct torrent *to)
+{
+	struct blist *reply = NULL;
+	struct bdata *peers = NULL;
+
+	if (thpsend(to, "started", &reply))
+		return -1;
+
+	if (!(peers = bsearchkey(reply, "peers")))
 		return -1;
 
 	to->peers = emalloc(sizeof(*to->peers));
-
 	switch (peers->type) {
 	case 's':
 		bstr2peer(to, peers->str, peers->len);
