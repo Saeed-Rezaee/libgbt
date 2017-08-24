@@ -40,7 +40,7 @@ static char * bparsestr(struct blist *, char *, size_t);
 static char * bparselnd(struct blist *, char *, size_t);
 static char * bparseany(struct blist *, char *, size_t);
 
-static int bcountlist(const struct blist *);
+static size_t bcountlist(const struct blist *);
 static size_t bpathfmt(const struct blist *, char *);
 static size_t metainfohash(struct torrent *);
 static size_t metaannounce(struct torrent *);
@@ -311,7 +311,7 @@ bsearchkey(const struct blist *bl, const char *key)
 	return NULL;
 }
 
-static int
+static size_t
 bcountlist(const struct blist *bl)
 {
 	int n = 0;
