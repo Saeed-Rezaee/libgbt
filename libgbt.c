@@ -53,6 +53,8 @@ static size_t blist2peer(struct torrent *, struct blist *);
 static int thpsend(struct torrent *, char *, struct blist *);
 static int peersend(struct peer *, uint8_t *, size_t);
 
+static int pwphandshake(struct torrent *, struct peer *);
+
 static void *
 emalloc(size_t s)
 {
@@ -571,12 +573,11 @@ peersend(struct peer *p, uint8_t *msg, size_t len)
 	return send(p->sockfd, msg, len, 0);
 }
 
-int
-pwphandshake(struct torrent *to, off_t n)
+static int
+pwphandshake(struct torrent *to, struct peer *p)
 {
 	off_t off = 0;
 	uint8_t msg[68];
-	struct peer *p;
 
 	msg[off++] = 19;
 	memcpy(msg + off, "BitTorrent protocol", 19);
@@ -587,8 +588,6 @@ pwphandshake(struct torrent *to, off_t n)
 	memcpy(msg + off, PEERID, 20);
 	off += 20;
 
-	p = &to->peers[n];
-
 	p->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (p->sockfd < 0)
 		err(1, "socket");
@@ -597,4 +596,25 @@ pwphandshake(struct torrent *to, off_t n)
 		return -1;
 
 	return peersend(p, msg, 68);
+}
+
+int
+pwpsend(struct torrent *to, struct peer *p, int type, uint8_t *msg, size_t len)
+{
+
+	switch(type) {
+	case PWP_HANDSHAKE:
+		return pwphandshake(to, p);
+		break; /* NOTREACHED */
+	        PWP_CHOKE,
+        case PWP_INTEREST:
+        case PWP_HAVE:
+        case PWP_BITFIELD:
+        case PWP_REQUEST:
+        case PWP_PIECE:
+        case PWP_CANCEL:
+		return -1;
+		break; /* NOTREACHED */
+	}
+	return -1;
 }

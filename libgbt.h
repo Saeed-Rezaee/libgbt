@@ -5,6 +5,17 @@
 
 #define PEERID "-GT0000-000000000000"
 
+enum {
+	PWP_HANDSHAKE,
+	PWP_CHOKE,
+	PWP_INTEREST,
+	PWP_HAVE,
+	PWP_BITFIELD,
+	PWP_REQUEST,
+	PWP_PIECE,
+	PWP_CANCEL
+};
+
 /* structure defining _ANY_ type of bencoding data */
 struct bdata {
 	char type;
@@ -62,4 +73,5 @@ struct bdata * bsearchkey(const struct blist *, const char *);
 
 struct torrent * metainfo(const char *);
 int getpeers(struct torrent *);
-int pwphandshake(struct torrent *to, off_t n);
+
+int pwpsend(struct torrent *, struct peer *, int, uint8_t *, size_t);
