@@ -79,4 +79,4 @@ struct bdata * bsearchkey(const struct blist *, const char *);
 struct torrent * metainfo(const char *);
 int getpeers(struct torrent *);
 
-int pwpsend(struct torrent *, struct peer *, int, uint8_t *, size_t);
+ssize_t pwpsend(struct torrent *, struct peer *, int);

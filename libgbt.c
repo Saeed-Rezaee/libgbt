@@ -51,7 +51,7 @@ static size_t bstr2peer(struct torrent *, char *, size_t);
 static size_t blist2peer(struct torrent *, struct blist *);
 
 static int thpsend(struct torrent *, char *, struct blist *);
-static int peersend(struct peer *, uint8_t *, size_t);
+static size_t pwpmsg(uint8_t **, int, uint8_t *, uint32_t);
 
 static int pwphandshake(struct torrent *, struct peer *);
 
@@ -567,12 +567,12 @@ getpeers(struct torrent *to)
 	return to->peernum;
 }
 
-static int
-peersend(struct peer *p, uint8_t *msg, size_t len)
-{
-	return send(p->sockfd, msg, len, 0);
-}
-
+/*
+ * ----------------------------------------------------------------
+ * | Name Length | Protocol Name | Reserved | Info Hash | Peer ID |
+ * ----------------------------------------------------------------
+ *       1              19             8         20          20
+ */
 static int
 pwphandshake(struct torrent *to, struct peer *p)
 {
@@ -595,26 +595,53 @@ pwphandshake(struct torrent *to, struct peer *p)
 	if (connect(p->sockfd, (struct sockaddr *)&p->peer, sizeof(p->peer)))
 		return -1;
 
-	return peersend(p, msg, 68);
+	return send(p->sockfd, msg, 68, 0);
 }
 
-int
-pwpsend(struct torrent *to, struct peer *p, int type, uint8_t *msg, size_t len)
+static size_t
+pwpmsg(uint8_t **msg, int type, uint8_t *payload, uint32_t len)
 {
+	size_t i;
+	off_t off = 0;
+
+	*msg[off] = htonl(len + 1);
+	off += 4;
+	*msg[off] = type;
+	off += 1;
+
+	for (i = 0; i < len; i++)
+		*msg[off++] = payload[i];
+
+	return off;
+}
+
+ssize_t
+pwpsend(struct torrent *to, struct peer *p, int type)
+{
+	size_t len;
+	uint8_t msg[MESSAGE_MAX];
 
 	switch(type) {
-	case PWP_HANDSHAKE:
-		return pwphandshake(to, p);
-		break; /* NOTREACHED */
-	        PWP_CHOKE,
+	case PWP_CHOKE:
+	case PWP_UNCHOKE:
         case PWP_INTEREST:
+        case PWP_UNINTEREST:
+		len = pwpmsg((uint8_t **)&msg, type, NULL, 0);
+		break;
         case PWP_HAVE:
         case PWP_BITFIELD:
+		len = sizeof(*to->bitfield) * to->pcsnum;
+		len = pwpmsg((uint8_t **)&msg, type, to->bitfield, len);
+		break;
         case PWP_REQUEST:
         case PWP_PIECE:
         case PWP_CANCEL:
 		return -1;
 		break; /* NOTREACHED */
+	case PWP_HANDSHAKE:
+		return pwphandshake(to, p);
+		break; /* NOTREACHED */
 	}
-	return -1;
+
+	return send(p->sockfd, msg, len, 0);
 }
