@@ -40,6 +40,9 @@ static char * bparsestr(struct blist *, char *, size_t);
 static char * bparselnd(struct blist *, char *, size_t);
 static char * bparseany(struct blist *, char *, size_t);
 
+static int bdecode(char *, size_t, struct blist *);
+static int bfree(struct blist *);
+static struct bdata * bsearchkey(const struct blist *, const char *);
 static size_t bcountlist(const struct blist *);
 static size_t bpathfmt(const struct blist *, char *);
 static size_t metainfohash(struct torrent *);
@@ -241,7 +244,7 @@ bparseany(struct blist *bl, char *buf, size_t len)
 	return buf;
 }
 
-int
+static int
 bdecode(char *buf, size_t len, struct blist *bl)
 {
 	char *p = buf;
@@ -260,7 +263,7 @@ bdecode(char *buf, size_t len, struct blist *bl)
 	return 0;
 }
 
-int
+static int
 bfree(struct blist *bl)
 {
 	struct bdata *np = NULL;
@@ -293,7 +296,7 @@ bfree(struct blist *bl)
  * appear twice, except for multifile torrent. For them, this function
  * can be called for each element of the "files" list.
  */
-struct bdata *
+static struct bdata *
 bsearchkey(const struct blist *bl, const char *key)
 {
 	struct bdata *np;

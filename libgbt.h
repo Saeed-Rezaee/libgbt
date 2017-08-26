@@ -72,11 +72,6 @@ struct torrent {
 	struct peer *peers;
 };
 
-int bfree(struct blist *);
-int bdecode(char *, size_t, struct blist *);
-struct bdata * bsearchkey(const struct blist *, const char *);
-
 struct torrent * metainfo(const char *);
 int getpeers(struct torrent *);
-
 ssize_t pwpsend(struct torrent *, struct peer *, int);
