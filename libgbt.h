@@ -4,6 +4,9 @@
 #include <sys/socket.h>
 
 #define PEERID "-GT0000-000000000000"
+#define PIECE_MAX 1048576
+#define BLOCK_MAX 16384
+#define MESSAGE_MAX ((BLOCK_MAX) + 9)
 
 enum {
 	PWP_CHOKE = 0,
