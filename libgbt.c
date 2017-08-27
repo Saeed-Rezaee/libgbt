@@ -50,8 +50,8 @@ static size_t metaannounce(struct torrent *);
 static size_t metafiles(struct torrent *);
 static size_t metapieces(struct torrent *);
 
-static size_t bstr2peer(struct torrent *, char *, size_t);
-static size_t blist2peer(struct torrent *, struct blist *);
+static size_t bstr2peer(struct peers *, char *, size_t);
+static size_t blist2peer(struct peers *, struct blist *);
 
 static int thpsend(struct torrent *, char *, struct blist *);
 static size_t pwpmsg(uint8_t **, int, uint8_t *, uint32_t);
@@ -443,55 +443,49 @@ metainfo(const char *path)
 }
 
 static size_t
-blist2peer(struct torrent *to, struct blist *peers)
+blist2peer(struct peers *ph, struct blist *peers)
 {
-	size_t i = 0;
 	struct bdata *np, *tmp;
-
-	to->peernum = bcountlist(peers);
-	to->peers = emalloc(to->peernum * sizeof(*to->peers));
-	if (!to->peers)
-		return -1;
+	struct peer *p;
 
 	TAILQ_FOREACH(np, peers, entries) {
-		to->peers[i].choked = 1;
-		to->peers[i].interrested = 0;
-		to->peers[i].peer.sin_family = AF_INET;
+		p = emalloc(sizeof(*p));
+		p->choked = 1;
+		p->interrested = 0;
+		p->peer.sin_family = AF_INET;
 
 		tmp = bsearchkey(np->bl, "port");
-		to->peers[i].peer.sin_port = tmp->num;
+		p->peer.sin_port = tmp->num;
 
 		tmp = bsearchkey(np->bl, "ip");
-		inet_pton(AF_INET, tostr(tmp->str, tmp->len), &to->peers[i].peer.sin_addr);
-		i++;
+		inet_pton(AF_INET, tostr(tmp->str, tmp->len), &p->peer.sin_addr);
+
+		TAILQ_INSERT_HEAD(ph, p, entries);
 	}
 
-	return to->peernum;
+	return bcountlist(peers);
 }
 
 static size_t
-bstr2peer(struct torrent *to, char *peers, size_t len)
+bstr2peer(struct peers *ph, char *buf, size_t len)
 {
 	size_t i;
+	struct peer *p;
 
 	if (len % 6)
 		errx(1, "%zu: Not a multiple of 6", len);
 
-	to->peernum = len/6;
-	to->peers = emalloc(to->peernum * sizeof(*to->peers));
-	if (!to->peers)
-		return -1;
-
 	for (i = 0; i < len/6; i++) {
-		to->peers[i].choked = 1;
-		to->peers[i].interrested = 0;
-		to->peers[i].bitfield = emalloc(to->pcsnum / sizeof(to->peers[i].bitfield));
-		to->peers[i].peer.sin_family      = AF_INET;
-		memcpy(&to->peers[i].peer.sin_port, &peers[i*6] + 4, 2);
-		memcpy(&to->peers[i].peer.sin_addr, &peers[i*6], 4);
+		p = emalloc(sizeof(*p));
+		p->choked = 1;
+		p->interrested = 0;
+		p->peer.sin_family = AF_INET;
+		memcpy(&p->peer.sin_port, &buf[i * 6] + 4, 2);
+		memcpy(&p->peer.sin_addr, &buf[i * 6], 4);
+		TAILQ_INSERT_TAIL(ph, p, entries);
 	}
 
-	return to->peernum;
+	return i;
 }
 
 static size_t
@@ -546,6 +540,7 @@ thpsend(struct torrent *to, char *ev, struct blist *reply)
 int
 getpeers(struct torrent *to)
 {
+	size_t n = 0;
 	struct blist reply;
 	struct bdata *peers = NULL;
 
@@ -556,18 +551,19 @@ getpeers(struct torrent *to)
 		return -1;
 
 	to->peers = emalloc(sizeof(*to->peers));
+	TAILQ_INIT(to->peers);
 	switch (peers->type) {
 	case 's':
-		bstr2peer(to, peers->str, peers->len);
+		n = bstr2peer(to->peers, peers->str, peers->len);
 		break;
 	case 'l':
-		blist2peer(to, peers->bl);
+		n = blist2peer(to->peers, peers->bl);
 		break;
 	default:
 		errx(1, "'%c': Unsupported type for peers", peers->type);
 	}
 
-	return to->peernum;
+	return n;
 }
 
 /*

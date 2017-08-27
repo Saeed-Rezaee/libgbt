@@ -51,7 +51,9 @@ struct peer {
 	uint8_t interrested;
 	uint8_t *bitfield;
 	struct sockaddr_in peer;
+	TAILQ_ENTRY(peer) entries;
 };
+TAILQ_HEAD(peers, peer);
 
 struct torrent {
 	char announce[PATH_MAX];
@@ -64,12 +66,11 @@ struct torrent {
 	size_t size;
 	size_t filnum;
 	size_t pcsnum;
-	size_t peernum;
 	size_t piecelen;
 	size_t upload;
 	size_t download;
 	struct file *files;
-	struct peer *peers;
+	struct peers *peers;
 };
 
 struct torrent * metainfo(const char *);
