@@ -21,6 +21,13 @@ enum {
 	PWP_HANDSHAKE
 };
 
+enum {
+	THP_NONE,
+	THP_STARTED,
+	THP_STOPPED,
+	THP_COMPLETED
+};
+
 /* structure defining _ANY_ type of bencoding data */
 struct bdata {
 	char type;

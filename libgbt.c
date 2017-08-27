@@ -58,6 +58,13 @@ static size_t pwpmsg(uint8_t **, int, uint8_t *, uint32_t);
 
 static int pwphandshake(struct torrent *, struct peer *);
 
+static char *event[] = {
+	[THP_NONE]      = NULL,
+	[THP_STARTED]   = "started",
+	[THP_STOPPED]   = "stopped",
+	[THP_COMPLETED] = "completed",
+};
+
 static void *
 emalloc(size_t s)
 {
