@@ -53,7 +53,7 @@ static size_t metapieces(struct torrent *);
 static size_t bstr2peer(struct peers *, char *, size_t);
 static size_t blist2peer(struct peers *, struct blist *);
 
-static int thpsend(struct torrent *, char *, struct blist *);
+static int httpsend(struct torrent *, char *, struct blist *);
 static size_t pwpmsg(uint8_t **, int, uint8_t *, uint32_t);
 
 static int pwphandshake(struct torrent *, struct peer *);
@@ -498,11 +498,10 @@ curlwrite(char *ptr, size_t size, size_t nmemb, struct buffer *userdata)
 }
 
 static int
-thpsend(struct torrent *to, char *ev, struct blist *reply)
+httpsend(struct torrent *to, char *ev, struct blist *reply)
 {
 	char  url[PATH_MAX] = {0};
 	struct buffer b;
-	struct bdata *np = NULL;
 	CURL *c;
 	CURLcode r;
 
