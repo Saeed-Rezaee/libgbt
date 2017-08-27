@@ -698,22 +698,14 @@ pwprecv(struct peer *p, uint8_t **buf, size_t *len)
 	ssize_t r;
 	uint8_t msg[MESSAGE_MAX];
 
+	*buf = NULL;
+	*len = 0;
+
 	r = recv(p->sockfd, msg, MESSAGE_MAX, 0);
-	if (r < 0) {
-		perror("recv");
-		*buf = NULL;
-		*len = 0;
-		return -1;
-	}
 
-	if (!r) {
-		*buf = NULL;
-		*len = 0;
-		return -1;
-	}
-
-	if (r < 2)
-		errx(1, "Message too short");
+	if (r < 0) perror("recv");
+	if (r < 1) return -1;
+	if (r < 2) errx(1, "Message too short");
 
 	*len = (ssize_t)msg[0];
 	*buf = msg + 2;
