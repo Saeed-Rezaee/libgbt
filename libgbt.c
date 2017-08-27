@@ -691,3 +691,32 @@ pwpsend(struct torrent *to, struct peer *p, int type)
 
 	return send(p->sockfd, msg, len, 0);
 }
+
+int
+pwprecv(struct peer *p, uint8_t **buf, size_t *len)
+{
+	ssize_t r;
+	uint8_t msg[MESSAGE_MAX];
+
+	r = recv(p->sockfd, msg, MESSAGE_MAX, 0);
+	if (r < 0) {
+		perror("recv");
+		*buf = NULL;
+		*len = 0;
+		return -1;
+	}
+
+	if (!r) {
+		*buf = NULL;
+		*len = 0;
+		return -1;
+	}
+
+	if (r < 2)
+		errx(1, "Message too short");
+
+	*len = (ssize_t)msg[0];
+	*buf = msg + 2;
+
+	return msg[1];
+}
