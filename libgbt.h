@@ -81,4 +81,5 @@ struct torrent {
 };
 
 struct torrent * metainfo(const char *);
+int thpsend(struct torrent *to, int ev);
 ssize_t pwpsend(struct torrent *, struct peer *, int);

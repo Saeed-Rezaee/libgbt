@@ -590,6 +590,29 @@ updatepeers(struct torrent *to, struct blist *reply)
 	return n;
 }
 
+int
+thpsend(struct torrent *to, int ev)
+{
+	int interval = 0;
+	struct bdata *np;
+	struct blist reply;
+
+	httpsend(to, event[ev], &reply);
+
+	np = bsearchkey(&reply, "failure reason");
+	if (np)
+		errx(1, "%s: %s", to->announce, tostr(np->str, np->len));
+
+	np = bsearchkey(&reply, "interval");
+	if (!np)
+		errx(1, "Missing key 'interval'");
+
+	interval = np->num;
+	updatepeers(to, &reply);
+
+	return interval;
+}
+
 /*
  * ----------------------------------------------------------------
  * | Name Length | Protocol Name | Reserved | Info Hash | Peer ID |
