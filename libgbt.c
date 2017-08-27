@@ -531,42 +531,60 @@ httpsend(struct torrent *to, char *ev, struct blist *reply)
 	if (r != CURLE_OK)
 		errx(1, "%s", curl_easy_strerror(r));
 
-	bdecode(b.buf, b.siz, reply);
-	np = bsearchkey(reply, "failure reason");
-	if (np)
-		errx(1, "%s: %s", to->announce, tostr(np->str, np->len));
-
-	np = bsearchkey(reply, "interval");
-	if (!np)
-		errx(1, "Missing key 'interval'");
-
-	return np->num;
+	return bdecode(b.buf, b.siz, reply);
 }
 
-int
-getpeers(struct torrent *to)
+static struct peer *
+findpeer(struct peers *ph, struct peer *p)
+{
+	struct peer *np;
+	TAILQ_FOREACH(np, ph, entries) {
+		if (memcmp(&np->peer, &p->peer, sizeof(np->peer)))
+			return np;
+	}
+	return NULL;
+}
+
+static int
+updatepeers(struct torrent *to, struct blist *reply)
 {
 	size_t n = 0;
-	struct blist reply;
-	struct bdata *peers = NULL;
+	struct peers ph;
+	struct peer *p;
+	struct bdata *np;
 
-	if (thpsend(to, "started", &reply) < 0)
+	if (!(np = bsearchkey(reply, "peers")))
 		return -1;
 
-	if (!(peers = bsearchkey(&reply, "peers")))
-		return -1;
+	if (!to->peers) {
+		to->peers = emalloc(sizeof(*to->peers));
+		TAILQ_INIT(to->peers);
+	}
 
-	to->peers = emalloc(sizeof(*to->peers));
-	TAILQ_INIT(to->peers);
-	switch (peers->type) {
+	TAILQ_INIT(&ph);
+
+	switch (np->type) {
 	case 's':
-		n = bstr2peer(to->peers, peers->str, peers->len);
+		bstr2peer(&ph, np->str, np->len);
 		break;
 	case 'l':
-		n = blist2peer(to->peers, peers->bl);
+		blist2peer(&ph, np->bl);
 		break;
 	default:
-		errx(1, "'%c': Unsupported type for peers", peers->type);
+		errx(1, "'%c': Unsupported type for peers", np->type);
+	}
+
+	/* Add new peers */
+	p = TAILQ_FIRST(&ph);
+	do {
+		if (findpeer(to->peers, p)) {
+			p = TAILQ_PREV(p, peers, entries);
+			TAILQ_REMOVE(&ph, p, entries);
+		}
+	} while((p = TAILQ_NEXT(p, entries)));
+	TAILQ_CONCAT(to->peers, &ph, entries);
+	TAILQ_FOREACH(p, to->peers, entries) {
+		n++;
 	}
 
 	return n;
