@@ -696,9 +696,8 @@ int
 pwprecv(struct peer *p, uint8_t **buf, size_t *len)
 {
 	ssize_t r;
-	uint8_t msg[MESSAGE_MAX];
+	static uint8_t msg[MESSAGE_MAX];
 
-	*buf = NULL;
 	*len = 0;
 
 	r = recv(p->sockfd, msg, MESSAGE_MAX, 0);
@@ -707,7 +706,13 @@ pwprecv(struct peer *p, uint8_t **buf, size_t *len)
 	if (r < 1) return -1;
 	if (r < 2) errx(1, "Message too short");
 
-	*len = (ssize_t)msg[0];
+	if (msg[0] > NUM_PWP_TYPES) {
+		*len = r;
+		*buf = msg;
+		return PWP_HANDSHAKE;
+	}
+
+	*len = (size_t)msg[0];
 	*buf = msg + 2;
 
 	return msg[1];
