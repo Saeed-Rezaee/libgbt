@@ -54,7 +54,7 @@ static size_t bstr2peer(struct peers *, char *, size_t);
 static size_t blist2peer(struct peers *, struct blist *);
 
 static int httpsend(struct torrent *, char *, struct blist *);
-static size_t pwpmsg(uint8_t **, int, uint8_t *, uint32_t);
+static size_t pwpmsg(uint8_t *, int, uint8_t *, uint32_t);
 
 static int pwphandshake(struct torrent *, struct peer *);
 
@@ -645,18 +645,18 @@ pwphandshake(struct torrent *to, struct peer *p)
 }
 
 static size_t
-pwpmsg(uint8_t **msg, int type, uint8_t *payload, uint32_t len)
+pwpmsg(uint8_t *msg, int type, uint8_t *payload, uint32_t len)
 {
 	size_t i;
 	off_t off = 0;
 
-	*msg[off] = htonl(len + 1);
+	msg[off] = htonl(len + 1);
 	off += 4;
-	*msg[off] = type;
+	msg[off] = type;
 	off += 1;
 
 	for (i = 0; i < len; i++)
-		*msg[off++] = payload[i];
+		msg[off++] = payload[i];
 
 	return off;
 }
@@ -672,13 +672,13 @@ pwpsend(struct torrent *to, struct peer *p, int type)
 	case PWP_UNCHOKE:
         case PWP_INTEREST:
         case PWP_UNINTEREST:
-		len = pwpmsg((uint8_t **)&msg, type, NULL, 0);
+		len = pwpmsg(msg, type, NULL, 0);
 		break;
-        case PWP_HAVE:
         case PWP_BITFIELD:
 		len = sizeof(*to->bitfield) * to->pcsnum;
-		len = pwpmsg((uint8_t **)&msg, type, to->bitfield, len);
+		len = pwpmsg(msg, type, to->bitfield, len);
 		break;
+        case PWP_HAVE:
         case PWP_REQUEST:
         case PWP_PIECE:
         case PWP_CANCEL:
