@@ -8,8 +8,6 @@
 #include <unistd.h>
 
 #include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 
 #include <arpa/inet.h>
 #include <curl/curl.h>
@@ -274,7 +272,7 @@ bdecode(char *buf, size_t len, struct blist *bl)
 	char *p = buf;
 	size_t s = len;
 
-	if (!bl)
+	if (!buf || !bl)
 		return -1;
 
 	TAILQ_INIT(bl);
@@ -437,33 +435,22 @@ metapieces(struct torrent *to)
 	return to->pcsnum;
 }
 
-struct torrent *
-metainfo(const char *path)
+int
+metainfo(struct torrent *to, char *buf, size_t len)
 {
-	FILE *f   = NULL;
-	struct stat sb;
-	struct torrent *to;
-
-	stat(path, &sb);
-	f = fopen(path, "r");
-	to = emalloc(sizeof(*to));
-
-	to->buf = emalloc(sb.st_size);
-	fread(to->buf, 1, sb.st_size, f);
-	fclose(f);
-
-	bdecode(to->buf, sb.st_size, &to->meta);
+	to->buf = buf;
 	to->upload = 0;
 	to->download = 0;
 	memcpy(to->peerid, PEERID, 20);
 	to->peerid[20] = 0;
+	bdecode(to->buf, len, &to->meta);
 
 	metainfohash(to);
 	metaannounce(to);
 	metafiles(to);
 	metapieces(to);
 
-	return to;
+	return 0;
 }
 
 static size_t
@@ -501,6 +488,7 @@ bstr2peer(struct peers *ph, char *buf, size_t len)
 
 	for (i = 0; i < len/6; i++) {
 		p = emalloc(sizeof(*p));
+		p->sockfd = -1;
 		p->choked = 1;
 		p->interrested = 0;
 		p->peer.sin_family = AF_INET;
@@ -541,6 +529,7 @@ httpsend(struct torrent *to, char *ev, struct blist *reply)
 		to->upload, to->download, to->size,
 		(ev ? "&event=" : ""), (ev ? ev : ""));
 
+	memset(&b, 0, sizeof(b));
 	curl_easy_setopt(c, CURLOPT_URL, url);
 	curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, curlwrite);
 	curl_easy_setopt(c, CURLOPT_WRITEDATA, &b);
