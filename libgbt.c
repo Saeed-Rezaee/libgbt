@@ -671,6 +671,12 @@ pwphave(struct torrent *to, uint32_t off)
 	return htonl(off);
 }
 
+/*
+ * -----------------------------------------
+ * | Message Length | Message ID | Payload |
+ * -----------------------------------------
+ *          4             1          ...
+ */
 static size_t
 pwpmsg(uint8_t *msg, int type, uint8_t *payload, uint32_t len)
 {
