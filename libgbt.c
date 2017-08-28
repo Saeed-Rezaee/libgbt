@@ -662,10 +662,11 @@ pwpmsg(uint8_t *msg, int type, uint8_t *payload, uint32_t len)
 }
 
 ssize_t
-pwpsend(struct torrent *to, struct peer *p, int type)
+pwpsend(struct torrent *to, struct peer *p, int type, void *data)
 {
 	size_t len;
 	uint8_t msg[MESSAGE_MAX];
+	uint8_t payload[MESSAGE_MAX];
 
 	switch(type) {
 	case PWP_CHOKE:
@@ -679,6 +680,12 @@ pwpsend(struct torrent *to, struct peer *p, int type)
 		len = pwpmsg(msg, type, to->bitfield, len);
 		break;
         case PWP_HAVE:
+		if (*((uint32_t *)data) >= to->pcsnum)
+			return -1;
+
+		payload[0] = htonl(*((uint32_t *)data));
+		len = pwpmsg(msg, type, payload, 4);
+		break;
         case PWP_REQUEST:
         case PWP_PIECE:
         case PWP_CANCEL:
