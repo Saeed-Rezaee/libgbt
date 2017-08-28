@@ -59,7 +59,7 @@ static int httpsend(struct torrent *, char *, struct blist *);
 static size_t pwpmsg(uint8_t *, int, uint8_t *, uint32_t);
 
 static int pwphandshake(struct torrent *, struct peer *);
-static uint32_t pwphave(struct torrent *, uint32_t);
+static uint32_t pwphave(struct torrent *, uint8_t *, uint32_t);
 
 static char *event[] = {
 	[THP_NONE]      = NULL,
@@ -662,13 +662,15 @@ pwphandshake(struct torrent *to, struct peer *p)
 }
 
 static uint32_t
-pwphave(struct torrent *to, uint32_t off)
+pwphave(struct torrent *to, uint8_t *payload, uint32_t off)
 {
 	if (off >= to->pcsnum)
 		errx(1, "Piece index too high");
 
+	payload[0] = htonl(off);
+
 	setbit(to->bitfield, off);
-	return htonl(off);
+	return sizeof(off);
 }
 
 /*
@@ -713,8 +715,7 @@ pwpsend(struct torrent *to, struct peer *p, int type, void *data)
 		len = pwpmsg(msg, type, to->bitfield, len);
 		break;
         case PWP_HAVE:
-		payload[0] = pwphave(to, *((uint32_t *)data));
-		len = pwpmsg(msg, type, payload, 4);
+		len = pwphave(to, payload, *((uint32_t *)data));
 		break;
         case PWP_REQUEST:
         case PWP_PIECE:
@@ -726,6 +727,7 @@ pwpsend(struct torrent *to, struct peer *p, int type, void *data)
 		break; /* NOTREACHED */
 	}
 
+	len = pwpmsg(msg, type, payload, len);
 	return send(p->sockfd, msg, len, 0);
 }
 
