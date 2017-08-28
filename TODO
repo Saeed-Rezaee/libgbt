@@ -6,19 +6,27 @@ bencoding
 pieces and blocks
 -----------------
 * calculate SHA1 for a piece
-* convert binary SHA1 to hexadecimal
 * add blocks to pieces
 * write pieces to files
 
 metainfo
 --------
-* write wrappers around bencoding functions
 * check metainfo file content
-* load metainfo in memory
+
+tracker HTTP protocol
+---------------------
+* replace libcurl with http.c
+
+peer wire protocol
+------------------
+* bind() + listen()
+* request
+* piece
+* cancel
+* end game
 
 overall
 -------
-* split source in different parts
 * get a cool logo (please rocx!)
 * engineer the library API
 * write the documentation of the API
@@ -26,5 +34,3 @@ overall
 
 RFC parts to implement
 ----------------------
-* tracker HTTP protocol
-* peer wire protocol
