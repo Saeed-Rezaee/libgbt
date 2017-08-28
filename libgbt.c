@@ -712,7 +712,7 @@ pwpsend(struct torrent *to, struct peer *p, int type, void *data)
 		break;
         case PWP_BITFIELD:
 		len = sizeof(*to->bitfield) * to->pcsnum;
-		len = pwpmsg(msg, type, to->bitfield, len);
+		memcpy(payload, to->bitfield, len);
 		break;
         case PWP_HAVE:
 		len = pwphave(to, payload, *((uint32_t *)data));
