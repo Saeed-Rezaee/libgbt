@@ -29,6 +29,8 @@ struct buffer {
 
 static void * emalloc(size_t);
 static size_t curlwrite(char *, size_t, size_t, struct buffer *);
+static uint8_t *setbit(uint8_t *, off_t);
+static uint8_t *clrbit(uint8_t *, off_t);
 
 static int    isnum(char);
 static char * tohex(uint8_t *, char *, size_t);
@@ -75,6 +77,20 @@ emalloc(size_t s)
 
 	memset(p, 0, s);
 	return p;
+}
+
+static uint8_t *
+setbit(uint8_t *bits, off_t off)
+{
+	bits[off / sizeof(*bits)] |= (1 << off);
+	return bits;
+}
+
+static uint8_t *
+clrbit(uint8_t *bits, off_t off)
+{
+	bits[off / sizeof(*bits)] &= ~(1 << off);
+	return bits;
 }
 
 static int
