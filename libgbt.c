@@ -639,21 +639,15 @@ thpsend(struct torrent *to, int ev)
 static int
 pwphandshake(struct torrent *to, struct peer *p)
 {
-	off_t off = 0;
 	uint8_t msg[68];
 
-	msg[off++] = 19;
-	memcpy(msg + off, "BitTorrent protocol", 19);
-	off += 19;
-	off += 8;
-	memcpy(msg + off, to->infohash, 20);
-	off += 20;
-	memcpy(msg + off, PEERID, 20);
-	off += 20;
+	msg[0] = 19;
+	memcpy(msg + 1, "BitTorrent protocol", 19);
+	memcpy(msg + 28, to->infohash, 20);
+	memcpy(msg + 48, PEERID, 20);
 
-	p->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (p->sockfd < 0)
-		err(1, "socket");
+	if ((p->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) 
+		return -1;
 
 	if (connect(p->sockfd, (struct sockaddr *)&p->peer, sizeof(p->peer)))
 		return -1;
