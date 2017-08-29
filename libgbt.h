@@ -55,6 +55,7 @@ struct piece {
 
 struct peer {
 	int sockfd;
+	int connected;
 	uint8_t choked;
 	uint8_t interrested;
 	uint8_t *bitfield;

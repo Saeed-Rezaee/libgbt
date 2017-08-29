@@ -488,7 +488,7 @@ bstr2peer(struct peers *ph, char *buf, size_t len)
 
 	for (i = 0; i < len/6; i++) {
 		p = emalloc(sizeof(*p));
-		p->sockfd = -1;
+		p->connected = 0;
 		p->choked = 1;
 		p->interrested = 0;
 		p->peer.sin_family = AF_INET;
