@@ -1,15 +1,23 @@
-#include <assert.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#include <sys/select.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
 #include "queue.h"
 #include "libgbt.h"
+
+#define FD_APPEND(fd) do {    \
+        FD_SET((fd), &rfds);  \
+        FD_SET((fd), &wfds);  \
+        if ((fd) > fdmax)     \
+                fdmax = (fd); \
+} while (0)
 
 void
 usage(char *name)
@@ -27,16 +35,31 @@ peerstr(struct peer *p)
 }
 
 int
+droppeer(struct peers *ph, struct peer **p) {
+	struct peer *tmp;
+	tmp = TAILQ_PREV(*p, peers, entries);
+	TAILQ_REMOVE(ph, *p, entries);
+	free(*p);
+	*p = tmp ? tmp : TAILQ_FIRST(ph);
+
+	return 0;
+}
+
+int
 main(int argc, char *argv[])
 {
-	int ev;
+	int r, ev, type, fdmax;
 	long interval = 0;
+	ssize_t len;
 	FILE *f;
 	char *buf;
+	uint8_t msg[MESSAGE_MAX];
+	fd_set rfds, wfds;
 	struct stat sb;
 	struct peer *p;
 	struct torrent to;
 	struct timespec last, now;
+	struct timeval tv;
 
 	if (argc != 2)
 		usage(argv[0]);
@@ -72,16 +95,74 @@ main(int argc, char *argv[])
 	        clock_gettime(CLOCK_MONOTONIC, &now);
 		if (now.tv_sec - last.tv_sec >= interval) {
 			interval = thpsend(&to, ev);
-			last = now;
+			memcpy(&last, &now, sizeof(now));
 			/* make next request a simple heartbeat by default */
 			ev = THP_NONE;
 		}
 
-		/* send a handshake message to all new peers */
+		FD_ZERO(&rfds);
+		FD_ZERO(&wfds);
+		fdmax = -1;
+
+		for (p = TAILQ_FIRST(to.peers); p; p = TAILQ_NEXT(p, entries)) {
+			/* prepare all new peers for connection */
+			if (p->sockfd < 0) {
+				if (pwpinit(p) < 0 && errno != EINPROGRESS) {
+					/* remove peers we cannot connect to */
+					printf("DELPEER: %s\n", peerstr(p));
+					droppeer(to.peers, &p);
+					FD_CLR(p->sockfd, &rfds);
+					FD_CLR(p->sockfd, &wfds);
+				}
+			}
+
+			/* add all peers to the socket set */
+			FD_APPEND(p->sockfd);
+		}
+
+		/* wait for one or more connections to be ready, or timeout */
+		tv.tv_sec = 0;
+		tv.tv_usec = 1000;
+		r = select(fdmax + 1, &rfds, &wfds, NULL, &tv);
+		if (r < 0) {
+			if (errno == EINTR)
+				continue;
+			perror("select");
+		}
+
 		TAILQ_FOREACH(p, to.peers, entries) {
+			/* send handshakes non-connected peers */
 			if (!p->connected) {
-				pwpsend(&to, p, PWP_HANDSHAKE, NULL);
-				printf("+ %s\n", peerstr(p));
+				if (FD_ISSET(p->sockfd, &wfds)) {
+					printf("ADDPEER: %s\n", peerstr(p));
+					p->connected = 1;
+					if (pwpsend(&to, p, PWP_HANDSHAKE, NULL) < 0) {
+						perror(peerstr(p));
+						droppeer(to.peers, &p);
+						FD_CLR(p->sockfd, &rfds);
+						FD_CLR(p->sockfd, &wfds);
+					}
+				}
+			} else {
+				if (FD_ISSET(p->sockfd, &wfds)) {
+					pwpsend(&to, p, PWP_INTERESTED, NULL);
+				}
+				if (FD_ISSET(p->sockfd, &rfds)) {
+					type = pwprecv(p, msg, &len);
+					switch (type) {
+					case -1:
+						/* remove peers we cannot connect to */
+						printf("DELPEER: %s\n", peerstr(p));
+						droppeer(to.peers, &p);
+						break;
+					case PWP_HANDSHAKE:
+						printf("HANDSHAKE: %s\n", peerstr(p));
+						break;
+					default:
+						printf("MESSAGE %02d: %s\n", type, peerstr(p));
+						break;
+					}
+				}
 			}
 		}
 	}
