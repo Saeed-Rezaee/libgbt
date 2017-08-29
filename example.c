@@ -79,13 +79,10 @@ main(int argc, char *argv[])
 
 		/* send a handshake message to all new peers */
 		TAILQ_FOREACH(p, to.peers, entries) {
-			if (p->sockfd >= 0)
-				continue;
-			if (pwpsend(&to, p, PWP_HANDSHAKE, NULL) < 0) {
-				perror(peerstr(p));
-				continue;
+			if (!p->connected) {
+				pwpsend(&to, p, PWP_HANDSHAKE, NULL);
+				printf("+ %s\n", peerstr(p));
 			}
-			printf("HANDSHAKE: %s\n", peerstr(p));
 		}
 	}
 
