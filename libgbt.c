@@ -1,34 +1,151 @@
 #include <err.h>
 #include <limits.h>
+#include <netdb.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <sys/socket.h>
+
+#include <arpa/inet.h>
+#include <curl/curl.h>
+#include <netinet/in.h>
 
 #include "queue.h"
+#include "sha1.h"
 #include "libgbt.h"
 
 #define MIN(a,b) ((a)<(b)?(a):(b))
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
-static int isnum(char);
+struct buffer {
+	char  *buf;
+	size_t siz;
+};
+
+static void * emalloc(size_t);
+static size_t curlwrite(char *, size_t, size_t, struct buffer *);
+static uint8_t *setbit(uint8_t *, off_t);
+static uint8_t *clrbit(uint8_t *, off_t);
+
+static int    isnum(char);
+static char * tohex(uint8_t *, char *, size_t);
+static char * tostr(char *, size_t);
+static char * urlencode(uint8_t *, size_t);
+
 static char * bparseint(struct blist *, char *, size_t);
 static char * bparsestr(struct blist *, char *, size_t);
 static char * bparselnd(struct blist *, char *, size_t);
 static char * bparseany(struct blist *, char *, size_t);
 
-static int bcountlist(const struct blist *);
+static int bdecode(char *, size_t, struct blist *);
+static int bfree(struct blist *);
+static struct bdata * bsearchkey(const struct blist *, const char *);
+static size_t bcountlist(const struct blist *);
 static size_t bpathfmt(const struct blist *, char *);
-static char * metastr(const struct blist *, const char *);
-static struct file * metafiles(const struct blist *);
+static size_t metainfohash(struct torrent *);
+static size_t metaannounce(struct torrent *);
+static size_t metafiles(struct torrent *);
+static size_t metapieces(struct torrent *);
+
+static size_t bstr2peer(struct peers *, char *, size_t);
+static size_t blist2peer(struct peers *, struct blist *);
+
+static int httpsend(struct torrent *, char *, struct blist *);
+static size_t pwpmsg(uint8_t *, int, uint8_t *, uint32_t);
+
+static int pwphandshake(struct torrent *, struct peer *);
+static uint32_t pwphave(struct torrent *, uint8_t *, uint32_t);
+
+static char *event[] = {
+	[THP_NONE]      = NULL,
+	[THP_STARTED]   = "started",
+	[THP_STOPPED]   = "stopped",
+	[THP_COMPLETED] = "completed",
+};
+
+static void *
+emalloc(size_t s)
+{
+	void *p = NULL;
+	p = malloc(s);
+	if (!p)
+		err(1, "malloc");
+
+	memset(p, 0, s);
+	return p;
+}
+
+static uint8_t *
+setbit(uint8_t *bits, off_t off)
+{
+	bits[off / sizeof(*bits)] |= (1 << off);
+	return bits;
+}
+
+static uint8_t *
+clrbit(uint8_t *bits, off_t off)
+{
+	bits[off / sizeof(*bits)] &= ~(1 << off);
+	return bits;
+}
 
 static int
 isnum(char c) {
 	return (c >= '0' && c <= '9');
+}
+
+static char *
+tohex(uint8_t *in, char *out, size_t len)
+{
+	size_t i, j;
+	char hex[] = "0123456789ABCDEF";
+
+	memset(out, 0, len*2 + 1);
+	for (i=0, j=0; i<len; i++, j++) {
+		out[j]   = hex[in[i] >> 4];
+		out[++j] = hex[in[i] & 15];
+	}
+
+	return out;
+}
+
+static char *
+tostr(char *in, size_t len)
+{
+	static char s[LINE_MAX];
+
+	memcpy(s, in, MIN(len, LINE_MAX));
+	s[MIN(len, LINE_MAX)] = 0;
+
+	return s;
+}
+
+static char *
+urlencode(uint8_t *in, size_t len)
+{
+	size_t i, j;
+	char *out;
+
+	out = emalloc(len * 3);
+
+	for (i = 0, j = 0; i < len; i++) {
+		if ((in[i] <= '0' && in[i] >= '9') ||
+		    (in[i] <= 'A' && in[i] >= 'Z') ||
+		    (in[i] <= 'a' && in[i] >= 'z') ||
+		    (in[i] == '-' || in[i] == '_'  ||
+		     in[i] == '.' || in[i] == '~')) {
+			out[j++] = in[i];
+		} else {
+			out[j++] = '%';
+			tohex(in + i, out + j, 1);
+			j += 2;
+		}
+	}
+
+	return out;
 }
 
 static char *
@@ -47,7 +164,7 @@ bparseint(struct blist *bl, char *buf, size_t len)
 	if (*p == '-' && (isnum(*p+1) && *p+1 > '0'))
 		errx(1, "invalid negative number\n");
 
-	np = malloc(sizeof(struct bdata));
+	np = emalloc(sizeof(*np));
 	if (!np)
 		return NULL;
 
@@ -59,13 +176,15 @@ bparseint(struct blist *bl, char *buf, size_t len)
 			n += *p - '0';
 		} else {
 			free(np);
-			errx(1, "invalid character\n");
+			errx(1, "'%c': invalid character\n", *p);
 		}
 		p++;
 	}
 
 	np->type = 'i';
 	np->num = n;
+	np->s = buf;
+	np->e = p;
 	TAILQ_INSERT_TAIL(bl, np, entries);
 	return p;
 }
@@ -79,7 +198,7 @@ bparsestr(struct blist *bl, char *buf, size_t len)
 	if (!isnum(buf[0]))
 		errx(1, "not a string\n");
 
-	np = malloc(sizeof(struct bdata));
+	np = emalloc(sizeof(*np));
 	if (!np)
 		return NULL;
 
@@ -91,6 +210,8 @@ bparsestr(struct blist *bl, char *buf, size_t len)
 
 	np->str = ++p;
 	np->type = 's';
+	np->s = buf;
+	np->e = p + np->len - 1;
 	TAILQ_INSERT_TAIL(bl, np, entries);
 	return p + np->len - 1;
 }
@@ -107,19 +228,17 @@ bparselnd(struct blist *bl, char *buf, size_t len)
 	if (*++p == 'e')
 		errx(1, "dictionary or list empty\n");
 
-	np = malloc(sizeof(struct bdata));
-	if (!np)
-		return NULL;
+	np = emalloc(sizeof(*np));
+	np->bl = emalloc(sizeof(*np->bl));
 
-	np->bl = malloc(sizeof(struct blist));
-	if (!np->bl)
-		return NULL;
 	TAILQ_INIT(np->bl);
 
 	while (*p != 'e' && p < buf + len)
 		p = bparseany(np->bl, p, len - (size_t)(p - buf)) + 1;
 
 	np->type = *buf;
+	np->s = buf;
+	np->e = p;
 	TAILQ_INSERT_TAIL(bl, np, entries);
 	return p;
 }
@@ -147,29 +266,26 @@ bparseany(struct blist *bl, char *buf, size_t len)
 	return buf;
 }
 
-struct blist *
-bdecode(char *buf, size_t len)
+static int
+bdecode(char *buf, size_t len, struct blist *bl)
 {
 	char *p = buf;
 	size_t s = len;
-	struct blist *bl = NULL;
 
-	bl = malloc(sizeof(struct blist));
-	if (!bl)
-		return NULL;
+	if (!buf || !bl)
+		return -1;
 
 	TAILQ_INIT(bl);
-
 	while (s > 1) {
 		p = bparseany(bl, p, s);
 		s = len - (p - buf);
 		p++;
 	}
 
-	return bl;
+	return 0;
 }
 
-int
+static int
 bfree(struct blist *bl)
 {
 	struct bdata *np = NULL;
@@ -202,7 +318,7 @@ bfree(struct blist *bl)
  * appear twice, except for multifile torrent. For them, this function
  * can be called for each element of the "files" list.
  */
-struct bdata *
+static struct bdata *
 bsearchkey(const struct blist *bl, const char *key)
 {
 	struct bdata *np;
@@ -225,7 +341,7 @@ bsearchkey(const struct blist *bl, const char *key)
 	return NULL;
 }
 
-static int
+static size_t
 bcountlist(const struct blist *bl)
 {
 	int n = 0;
@@ -250,78 +366,365 @@ bpathfmt(const struct blist *bl, char *path)
 	return strlen(path);
 }
 
-static char *
-metastr(const struct blist *bl, const char *key)
+static size_t
+metainfohash(struct torrent *to)
 {
-	char *url;
 	struct bdata *np = NULL;
 
-	np = bsearchkey(bl, key);
-	url = malloc(np->len + 1);
-	url[np->len] = 0;
-	memcpy(url, np->str, np->len);
-
-	return url;
+	np = bsearchkey(&to->meta, "info");
+	return sha1((unsigned char *)np->s, np->e - np->s + 1, to->infohash);
 }
 
-static struct file *
-metafiles(const struct blist *bl)
+static size_t
+metaannounce(struct torrent *to)
+{
+	struct bdata *np = NULL;
+
+	np = bsearchkey(&to->meta, "announce");
+	memset(to->announce, 0, PATH_MAX);
+	memcpy(to->announce, np->str, np->len);
+
+	return np->len;
+}
+
+static size_t
+metafiles(struct torrent *to)
 {
 	int i = 0;
 	size_t namelen = 0;
 	char name[PATH_MAX];
 	struct bdata *np;
 	struct blist *head;
-	struct file *files;
 
-	np = bsearchkey(bl, "name");
+	np = bsearchkey(&to->meta, "name");
 	namelen = np->len;
 	memset(name, 0, PATH_MAX);
 	memcpy(name, np->str, MIN(namelen, PATH_MAX - 1));
 
-	np = bsearchkey(bl, "files");
+	to->size = 0;
+	np = bsearchkey(&to->meta, "files");
 	if (np) { /* multi-file torrent */
 		head = np->bl;
-		files = malloc(sizeof(struct file) * bcountlist(head));
+		to->filnum = bcountlist(head);
+		to->files = emalloc(sizeof(*to->files) * bcountlist(head));
 		TAILQ_FOREACH(np, head, entries) {
-			files[i].len  = bsearchkey(np->bl, "length")->num;
-			memset(files[i].path, 0, PATH_MAX);
-			memcpy(files[i].path, name, namelen);
-			bpathfmt(bsearchkey(np->bl, "path")->bl, files[i].path);
+			to->files[i].len  = bsearchkey(np->bl, "length")->num;
+			to->size += to->files[i].len;
+			memset(to->files[i].path, 0, PATH_MAX);
+			memcpy(to->files[i].path, name, namelen);
+			bpathfmt(bsearchkey(np->bl, "path")->bl, to->files[i].path);
 			i++;
 		}
 	} else { /* single-file torrent */
-		files = malloc(sizeof(struct file));
-		files[0].len = bsearchkey(bl, "length")->num;
-		strcpy(files[0].path, name);
+		to->files = emalloc(sizeof(*to->files));
+		to->files[0].len = bsearchkey(&to->meta, "length")->num;
+		strcpy(to->files[0].path, name);
+		to->filnum = 1;
 	}
-	return files;
+	return to->filnum;
 }
 
-struct torrent *
-metainfo(const char *path)
+static size_t
+metapieces(struct torrent *to)
 {
-	char *buf = NULL;
-	FILE *f   = NULL;
-	struct stat sb;
-	struct blist *meta;
-	struct torrent *to;
+	to->pieces = (uint8_t *)bsearchkey(&to->meta, "pieces")->s;
+	to->piecelen = bsearchkey(&to->meta, "piece length")->num;
+	to->pcsnum = to->size/to->piecelen + !!(to->size%to->piecelen);
+	to->bitfield = emalloc(to->pcsnum / sizeof(*to->bitfield));
 
-	stat(path, &sb);
-	f = fopen(path, "r");
-	buf = malloc(sb.st_size);
-	to = malloc(sizeof(struct torrent));
+	return to->pcsnum;
+}
 
-	fread(buf, 1, sb.st_size, f);
-	fclose(f);
+int
+metainfo(struct torrent *to, char *buf, size_t len)
+{
+	to->buf = buf;
+	to->upload = 0;
+	to->download = 0;
+	memcpy(to->peerid, PEERID, 20);
+	to->peerid[20] = 0;
+	bdecode(to->buf, len, &to->meta);
 
-	meta = bdecode(buf, sb.st_size);
+	metainfohash(to);
+	metaannounce(to);
+	metafiles(to);
+	metapieces(to);
 
-	to->url = metastr(meta, "announce");
-	to->files = metafiles(meta);
+	return 0;
+}
 
-	bfree(meta);
-	free(buf);
+static size_t
+blist2peer(struct peers *ph, struct blist *peers)
+{
+	struct bdata *np, *tmp;
+	struct peer *p;
 
-	return to;
+	TAILQ_FOREACH(np, peers, entries) {
+		p = emalloc(sizeof(*p));
+		p->choked = 1;
+		p->interrested = 0;
+		p->peer.sin_family = AF_INET;
+
+		tmp = bsearchkey(np->bl, "port");
+		p->peer.sin_port = tmp->num;
+
+		tmp = bsearchkey(np->bl, "ip");
+		inet_pton(AF_INET, tostr(tmp->str, tmp->len), &p->peer.sin_addr);
+
+		TAILQ_INSERT_HEAD(ph, p, entries);
+	}
+
+	return bcountlist(peers);
+}
+
+static size_t
+bstr2peer(struct peers *ph, char *buf, size_t len)
+{
+	size_t i;
+	struct peer *p;
+
+	if (len % 6)
+		errx(1, "%zu: Not a multiple of 6", len);
+
+	for (i = 0; i < len/6; i++) {
+		p = emalloc(sizeof(*p));
+		p->sockfd = -1;
+		p->choked = 1;
+		p->interrested = 0;
+		p->peer.sin_family = AF_INET;
+		memcpy(&p->peer.sin_port, &buf[i * 6] + 4, 2);
+		memcpy(&p->peer.sin_addr, &buf[i * 6], 4);
+		TAILQ_INSERT_TAIL(ph, p, entries);
+	}
+
+	return i;
+}
+
+static size_t
+curlwrite(char *ptr, size_t size, size_t nmemb, struct buffer *userdata)
+{
+	userdata->buf = realloc(userdata->buf, userdata->siz + size*nmemb);
+	memcpy(userdata->buf + userdata->siz, ptr, size*nmemb);
+	userdata->siz += size*nmemb;
+	return userdata->siz;
+}
+
+static int
+httpsend(struct torrent *to, char *ev, struct blist *reply)
+{
+	char  url[PATH_MAX] = {0};
+	struct buffer b;
+	CURL *c;
+	CURLcode r;
+
+	c = curl_easy_init();
+	if (!c)
+		return -1;
+
+	snprintf(url, PATH_MAX,
+		"%s?peer_id=%s&info_hash=%s&port=%d"
+		"&uploaded=%zu&downloaded=%zu&left=%zu"
+		"%s%s&compact=1",
+		to->announce, to->peerid, urlencode(to->infohash, 20), 65535,
+		to->upload, to->download, to->size,
+		(ev ? "&event=" : ""), (ev ? ev : ""));
+
+	memset(&b, 0, sizeof(b));
+	curl_easy_setopt(c, CURLOPT_URL, url);
+	curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, curlwrite);
+	curl_easy_setopt(c, CURLOPT_WRITEDATA, &b);
+	r = curl_easy_perform(c);
+	if (r != CURLE_OK)
+		errx(1, "%s", curl_easy_strerror(r));
+
+	return bdecode(b.buf, b.siz, reply);
+}
+
+static struct peer *
+findpeer(struct peers *ph, struct peer *p)
+{
+	struct peer *np;
+	TAILQ_FOREACH(np, ph, entries) {
+		if (memcmp(&np->peer, &p->peer, sizeof(np->peer)))
+			return np;
+	}
+	return NULL;
+}
+
+static int
+updatepeers(struct torrent *to, struct blist *reply)
+{
+	size_t n = 0;
+	struct peers ph;
+	struct peer *p;
+	struct bdata *np;
+
+	if (!(np = bsearchkey(reply, "peers")))
+		return -1;
+
+	if (!to->peers) {
+		to->peers = emalloc(sizeof(*to->peers));
+		TAILQ_INIT(to->peers);
+	}
+
+	TAILQ_INIT(&ph);
+
+	switch (np->type) {
+	case 's':
+		bstr2peer(&ph, np->str, np->len);
+		break;
+	case 'l':
+		blist2peer(&ph, np->bl);
+		break;
+	default:
+		errx(1, "'%c': Unsupported type for peers", np->type);
+	}
+
+	/* Add new peers */
+	p = TAILQ_FIRST(&ph);
+	do {
+		if (findpeer(to->peers, p)) {
+			p = TAILQ_PREV(p, peers, entries);
+			TAILQ_REMOVE(&ph, p, entries);
+		}
+	} while((p = TAILQ_NEXT(p, entries)));
+	TAILQ_CONCAT(to->peers, &ph, entries);
+	TAILQ_FOREACH(p, to->peers, entries) {
+		n++;
+	}
+
+	return n;
+}
+
+int
+thpsend(struct torrent *to, int ev)
+{
+	int interval = 0;
+	struct bdata *np;
+	struct blist reply;
+
+	httpsend(to, event[ev], &reply);
+
+	np = bsearchkey(&reply, "failure reason");
+	if (np)
+		errx(1, "%s: %s", to->announce, tostr(np->str, np->len));
+
+	np = bsearchkey(&reply, "interval");
+	if (!np)
+		errx(1, "Missing key 'interval'");
+
+	interval = np->num;
+	updatepeers(to, &reply);
+
+	return interval;
+}
+
+/*
+ * ----------------------------------------------------------------
+ * | Name Length | Protocol Name | Reserved | Info Hash | Peer ID |
+ * ----------------------------------------------------------------
+ *       1              19             8         20          20
+ */
+static int
+pwphandshake(struct torrent *to, struct peer *p)
+{
+	uint8_t msg[68];
+
+	msg[0] = 19;
+	memcpy(msg + 1, "BitTorrent protocol", 19);
+	memcpy(msg + 28, to->infohash, 20);
+	memcpy(msg + 48, PEERID, 20);
+
+	if ((p->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) 
+		return -1;
+
+	if (connect(p->sockfd, (struct sockaddr *)&p->peer, sizeof(p->peer)))
+		return -1;
+
+	return send(p->sockfd, msg, 68, 0);
+}
+
+static uint32_t
+pwphave(struct torrent *to, uint8_t *payload, uint32_t off)
+{
+	if (off >= to->pcsnum)
+		errx(1, "Piece index too high");
+
+	payload[0] = htonl(off);
+
+	setbit(to->bitfield, off);
+	return sizeof(off);
+}
+
+/*
+ * -----------------------------------------
+ * | Message Length | Message ID | Payload |
+ * -----------------------------------------
+ *          4             1          ...
+ */
+static size_t
+pwpmsg(uint8_t *msg, int type, uint8_t *payload, uint32_t len)
+{
+	size_t i;
+	off_t off = 0;
+
+	msg[off] = htonl(len + 1);
+	off += 4;
+	msg[off] = type;
+	off += 1;
+
+	for (i = 0; i < len; i++)
+		msg[off++] = payload[i];
+
+	return off;
+}
+
+ssize_t
+pwpsend(struct torrent *to, struct peer *p, int type, void *data)
+{
+	size_t len;
+	uint8_t msg[MESSAGE_MAX];
+	uint8_t payload[MESSAGE_MAX];
+
+	switch(type) {
+	case PWP_CHOKE:
+	case PWP_UNCHOKE:
+        case PWP_INTEREST:
+        case PWP_UNINTEREST:
+		len = pwpmsg(msg, type, NULL, 0);
+		break;
+        case PWP_BITFIELD:
+		len = sizeof(*to->bitfield) * to->pcsnum;
+		memcpy(payload, to->bitfield, len);
+		break;
+        case PWP_HAVE:
+		len = pwphave(to, payload, *((uint32_t *)data));
+		break;
+        case PWP_REQUEST:
+        case PWP_PIECE:
+        case PWP_CANCEL:
+		return -1;
+		break; /* NOTREACHED */
+	case PWP_HANDSHAKE:
+		return pwphandshake(to, p);
+		break; /* NOTREACHED */
+	}
+
+	len = pwpmsg(msg, type, payload, len);
+	return send(p->sockfd, msg, len, 0);
+}
+
+int
+pwprecv(struct peer *p, uint8_t *buf, ssize_t *len)
+{
+	*len = recv(p->sockfd, buf, MESSAGE_MAX, 0);
+
+	if (*len < 0) perror("recv");
+	if (*len < 1) return -1;
+	if (*len < 2) errx(1, "Message too short");
+
+	if (buf[0] > NUM_PWP_TYPES)
+		return PWP_HANDSHAKE;
+
+	return buf[0];
 }
