@@ -689,8 +689,8 @@ pwpsend(struct torrent *to, struct peer *p, int type, void *data)
 	switch(type) {
 	case PWP_CHOKE:
 	case PWP_UNCHOKE:
-        case PWP_INTEREST:
-        case PWP_UNINTEREST:
+        case PWP_INTERESTED:
+        case PWP_UNINTERESTED:
 		len = pwpmsg(msg, type, NULL, 0);
 		break;
         case PWP_BITFIELD:
