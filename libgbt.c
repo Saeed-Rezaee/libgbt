@@ -1,4 +1,6 @@
 #include <err.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <netdb.h>
 #include <stdio.h>
@@ -488,6 +490,7 @@ bstr2peer(struct peers *ph, char *buf, size_t len)
 
 	for (i = 0; i < len/6; i++) {
 		p = emalloc(sizeof(*p));
+		p->sockfd = -1;
 		p->connected = 0;
 		p->choked = 1;
 		p->interrested = 0;
@@ -619,6 +622,26 @@ thpsend(struct torrent *to, int ev)
 	return interval;
 }
 
+int
+pwpinit(struct peer *p)
+{
+	int flags;
+
+	if (p->connected)
+		return 0;
+
+	if ((p->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+		return -1;
+
+	if ((flags = fcntl(p->sockfd, F_GETFL, 0)) < 0)
+		return -1;
+
+	if (fcntl(p->sockfd, F_SETFL, flags|O_NONBLOCK) < 0)
+		return -1;
+
+	return connect(p->sockfd, (struct sockaddr *)&p->peer, sizeof(p->peer));
+}
+
 /*
  * ----------------------------------------------------------------
  * | Name Length | Protocol Name | Reserved | Info Hash | Peer ID |
@@ -634,12 +657,6 @@ pwphandshake(struct torrent *to, struct peer *p)
 	memcpy(msg + 1, "BitTorrent protocol", 19);
 	memcpy(msg + 28, to->infohash, 20);
 	memcpy(msg + 48, PEERID, 20);
-
-	if ((p->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) 
-		return -1;
-
-	if (connect(p->sockfd, (struct sockaddr *)&p->peer, sizeof(p->peer)))
-		return -1;
 
 	return send(p->sockfd, msg, 68, 0);
 }
