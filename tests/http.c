@@ -1,26 +1,31 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include "http.h"
 
 void
-test_httpencode()
+test_tcpopen()
 {
-	char *request;
+	tcpopen("0.0.0.0", "1234");
+}
 
-	char *keys[3]   = { "foo", "bar", NULL };
-	char *values[3] = { "1",   "2",   NULL };
+void
+test_httparseurl()
+{
+	char *host, *port, *path;
 
-	request = httpencode(keys, values, "libgbt");
-	puts(request);
+	assert(httpparseurl(&host, &port, &path,
+		"http://irc.nixers.net:8080") == 1);
 
-	free request;
+	assert(httpparseurl(&host, &port, &path,
+		"https://git.nixers.net/libgbt") == 2);
 }
 
 int
 main()
 {
-	test_httpencode();
+	test_tcpopen();
 
 	return 0;
 }
