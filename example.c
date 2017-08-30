@@ -104,6 +104,9 @@ main(int argc, char *argv[])
 		FD_ZERO(&wfds);
 		fdmax = -1;
 
+		if (TAILQ_EMPTY(to.peers))
+			continue;
+
 		for (p = TAILQ_FIRST(to.peers); p; p = TAILQ_NEXT(p, entries)) {
 			/* prepare all new peers for connection */
 			if (p->sockfd < 0) {
