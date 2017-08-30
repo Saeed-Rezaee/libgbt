@@ -87,3 +87,4 @@ int thpsend(struct torrent *to, int ev);
 int pwpinit(struct peer *);
 ssize_t pwpsend(struct torrent *, struct peer *, int, void *);
 int pwprecv(struct peer *, uint8_t *, ssize_t *);
+struct piece piecereqrand(struct torrent *to);

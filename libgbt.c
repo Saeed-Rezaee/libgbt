@@ -464,6 +464,17 @@ metainfo(struct torrent *to, char *buf, size_t len)
 	return 0;
 }
 
+struct piece
+piecereqrand(struct torrent *to)
+{
+	uint32_t n;
+
+	srand(time(NULL)); /* good-enough seed */
+	n = rand() % (to->pcsnum + 1);
+
+	return to->pieces[n];
+}
+
 static size_t
 blist2peer(struct peers *ph, struct blist *peers)
 {
