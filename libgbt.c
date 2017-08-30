@@ -429,10 +429,19 @@ metafiles(struct torrent *to)
 static size_t
 metapieces(struct torrent *to)
 {
-	to->pieces = (uint8_t *)bsearchkey(&to->meta, "pieces")->s;
+	size_t i;
+	uint8_t *sha1 = NULL;
+
 	to->piecelen = bsearchkey(&to->meta, "piece length")->num;
 	to->pcsnum = to->size/to->piecelen + !!(to->size%to->piecelen);
 	to->bitfield = emalloc(to->pcsnum / sizeof(*to->bitfield));
+	to->pieces = emalloc(to->pcsnum * sizeof(*to->pieces));
+
+	for (i = 0; i < to->pcsnum; i++) {
+		to->pieces[i].len = i == to->pcsnum ? to->size - i*to->piecelen : to->piecelen;
+		to->pieces[i].data = emalloc(to->pieces[i].len);
+		to->pieces[i].sha1 = sha1 + (i*20);
+	}
 
 	return to->pcsnum;
 }

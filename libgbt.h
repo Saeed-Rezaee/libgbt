@@ -48,7 +48,7 @@ struct file {
 };
 
 struct piece {
-	uint8_t sha1[20];
+	uint8_t *sha1;
 	uint8_t *data;
 	size_t len;
 };
@@ -71,7 +71,7 @@ struct torrent {
 	uint8_t peerid[21];
 	uint8_t infohash[20];
 	uint8_t *bitfield;
-	uint8_t *pieces;
+	struct piece *pieces;
 	size_t size;
 	size_t filnum;
 	size_t pcsnum;
