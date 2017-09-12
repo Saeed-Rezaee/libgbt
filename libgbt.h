@@ -29,18 +29,11 @@ enum {
 	THP_COMPLETED
 };
 
-/* structure defining _ANY_ type of bencoding data */
-struct bdata {
-	char type;
-	size_t len;
-	long num;
-	char *str;
-	char *s;
-	char *e;
-	struct blist *bl;
-	TAILQ_ENTRY(bdata) entries;
+struct be {
+        char *start;
+        char *end;
+        char *off;
 };
-TAILQ_HEAD(blist, bdata);
 
 struct file {
 	char path[PATH_MAX];

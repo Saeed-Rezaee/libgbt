@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -37,16 +38,20 @@ static char * tohex(uint8_t *, char *, size_t);
 static char * tostr(char *, size_t);
 static char * urlencode(uint8_t *, size_t);
 
-static char * bparseint(struct blist *, char *, size_t);
-static char * bparsestr(struct blist *, char *, size_t);
-static char * bparselnd(struct blist *, char *, size_t);
-static char * bparseany(struct blist *, char *, size_t);
+static int beinit(struct be *, char *, size_t);
+static size_t beatol(char **, long *);
+static size_t beint(struct be *, long *);
+static size_t bestr(struct be *, char **, size_t *);
+static size_t belist(struct be *, size_t *);
+static size_t bedict(struct be *, size_t *);
+static size_t benext(struct be *);
+static int belistover(struct be *);
+static int belistnext(struct be *);
+static int bedictnext(struct be *, char **, size_t *, struct be *);
+static char betype(struct be *);
+static int bekv(struct be *, char *, size_t, struct be *);
+static int bepath(struct be *, char **, size_t);
 
-static int bdecode(char *, size_t, struct blist *);
-static int bfree(struct blist *);
-static struct bdata * bsearchkey(const struct blist *, const char *);
-static size_t bcountlist(const struct blist *);
-static size_t bpathfmt(const struct blist *, char *);
 static size_t metainfohash(struct torrent *);
 static size_t metaannounce(struct torrent *);
 static size_t metafiles(struct torrent *);
@@ -150,222 +155,293 @@ urlencode(uint8_t *in, size_t len)
 	return out;
 }
 
-static char *
-bparseint(struct blist *bl, char *buf, size_t len)
+static int
+beinit(struct be *b, char *s, size_t l)
 {
-	long n = 0;
-	char *p = buf;
-	struct bdata *np = NULL;
+        if (!b || !s || !l)
+                return 0;
 
-	if (*p++ != 'i')
-		errx(1, "not an integer\n");
+        memset(b, 0, sizeof(*b));
+        b->start = s;
+        b->end = b->start + l - 1;
+        b->off = b->start;
 
-	if (*p == '0' && *(p+1) != 'e')
-		errx(1, "0 not followed by e\n");
+        return 1;
+}
 
-	if (*p == '-' && (isnum(*p+1) && *p+1 > '0'))
-		errx(1, "invalid negative number\n");
+static size_t
+beatol(char **str, long *l)
+{
+        long s = 1;
+        long v = 0;
+	char *sp = *str;
 
-	np = emalloc(sizeof(*np));
-	if (!np)
-		return NULL;
+        if (!sp)
+                return 0;
 
-	while (*p != 'e' && p < buf + len) {
-		if (*p == '-') {
-			n = -1;
-		} else if (isnum(*p)) {
-			n *= 10;
-			n += *p - '0';
-		} else {
-			free(np);
-			errx(1, "'%c': invalid character\n", *p);
-		}
-		p++;
+        /* define the sign of our number */
+        if (*sp == '-') {
+                s = -1;
+                sp++;
+		/* -0 is invalid, even for "-03" */
+		if (*sp == '0')
+			return 0;
+        }
+
+        /* 0 followed by a number is considered invalid */
+        if (sp[0] == '0' && isdigit(sp[1]))
+                return 0;
+
+        /* read out number until next non-number, or end of string */
+        while(isdigit(*sp)) {
+                v *= 10;
+                v += *sp++ - '0';
+        }
+
+        if (l)
+                *l = v * s;
+
+	/* move initial pointer to the actual read data */
+	*str = sp;
+
+        return 1;
+}
+
+static size_t
+beint(struct be *b, long *n)
+{
+	char *sp;
+        long num;
+
+        if (!b)
+                return 0;
+
+	sp = b->off;
+
+        if (*(sp++) != 'i')
+                return 0;
+
+        beatol(&sp, &num);
+
+        if (*sp != 'e')
+                return 0;
+
+        if (n)
+                *n = num;
+
+        return sp - b->off + 1;
+}
+
+static size_t
+bestr(struct be *b, char **s, size_t *l)
+{
+	char *sp;
+        ssize_t len;
+
+	if (!b)
+		return 0;
+
+	sp = b->off;
+
+        if (!beatol(&sp, &len))
+                return 0;
+
+        if (len < 0 || *sp++ != ':')
+                return 0;
+
+        if (s)
+                *s = sp;
+
+        if (l)
+                *l = (size_t)len;
+
+        return sp - b->off + len;
+}
+
+static size_t
+belist(struct be *b, size_t *n)
+{
+        size_t c = 0;
+	struct be i;
+
+        if (!b)
+                return 0;
+
+	beinit(&i, b->off, b->end - b->off + 1);
+
+        while(!belistover(&i)) {
+		belistnext(&i);
+                c++;
 	}
 
-	np->type = 'i';
-	np->num = n;
-	np->s = buf;
-	np->e = p;
-	TAILQ_INSERT_TAIL(bl, np, entries);
-	return p;
+	if (*i.off == 'e')
+		i.off++;
+
+        if (n)
+                *n = c;
+
+        return i.off - b->off;
 }
 
-static char *
-bparsestr(struct blist *bl, char *buf, size_t len)
+static size_t
+bedict(struct be *b, size_t *n)
 {
-	char *p = buf;
-	struct bdata *np = NULL;
+        size_t c = 0;
+	struct be i;
 
-	if (!isnum(buf[0]))
-		errx(1, "not a string\n");
+        if (!b)
+                return 0;
 
-	np = emalloc(sizeof(*np));
-	if (!np)
-		return NULL;
+	beinit(&i, b->off, b->end - b->off + 1);
 
-	np->len = 0;
-	while (*p != ':' && p < (buf + len)) {
-		np->len *= 10;
-		np->len += *p++ - '0';
+        while(!belistover(&i)) {
+		bedictnext(&i, NULL, NULL, NULL);
+                c++;
 	}
 
-	np->str = ++p;
-	np->type = 's';
-	np->s = buf;
-	np->e = p + np->len - 1;
-	TAILQ_INSERT_TAIL(bl, np, entries);
-	return p + np->len - 1;
+        if (*i.off == 'e')
+		i.off++;
+
+        if (n)
+                *n = c;
+
+        return i.off - b->off;
 }
 
-static char *
-bparselnd(struct blist *bl, char *buf, size_t len)
-{
-	char *p = buf;
-	struct bdata *np = NULL;
-
-	if (*p != 'l' && *p != 'd')
-		errx(1, "not a dictionary or list\n");
-
-	if (*++p == 'e')
-		errx(1, "dictionary or list empty\n");
-
-	np = emalloc(sizeof(*np));
-	np->bl = emalloc(sizeof(*np->bl));
-
-	TAILQ_INIT(np->bl);
-
-	while (*p != 'e' && p < buf + len)
-		p = bparseany(np->bl, p, len - (size_t)(p - buf)) + 1;
-
-	np->type = *buf;
-	np->s = buf;
-	np->e = p;
-	TAILQ_INSERT_TAIL(bl, np, entries);
-	return p;
+static int
+belistover(struct be *b) {
+	return b->off >= b->end || *b->off == 'e';
 }
 
-static char *
-bparseany(struct blist *bl, char *buf, size_t len)
+static int
+belistnext(struct be *b)
 {
-	switch (buf[0]) {
-	case 'l': /* FALLTHROUGH */
-	case 'd':
-		return bparselnd(bl, buf, len);
-		break; /* NOTREACHED */
+        if (!b || *b->off == 'e')
+                return 0;
+
+	if (b->off == b->start && *b->off == 'l') {
+		b->off++;
+		return 1;
+	}
+
+        return benext(b);
+}
+
+static int
+bedictnext(struct be *b, char **k, size_t *l, struct be *v)
+{
+        if (!b || *b->off == 'e')
+                return 0;
+
+	/* move to first element if we're at the start */
+        if (b->off == b->start && *b->off == 'd')
+                b->off++;
+
+	/* retrieve key name and length */
+        if (!bestr(b, k, l))
+                return 0;
+
+	if (benext(b) && v)
+		beinit(v, b->off, b->end - b->off + 1);
+
+	return benext(b);
+}
+
+static size_t
+benext(struct be *b)
+{
+	int r = 0;
+
+	if (!b)
+		return 0;
+
+        /* check for end of buffer */
+        if (b->off >= b->end)
+                return 0;
+
+	/* TODO: implement betype() */
+        switch(betype(b)) {
+        case 'i':
+                r = beint(b, NULL);
+                break;
+        case 'l':
+                r = belist(b, NULL);
+                break;
+        case 'd':
+                r = bedict(b, NULL);
+                break;
+        case 's':
+		r = bestr(b, NULL, NULL);
+                break;
+        }
+
+	b->off += r;
+
+        return r;
+}
+
+static char
+betype(struct be *b)
+{
+	switch(*b->off) {
 	case 'i':
-		return bparseint(bl, buf, len);
-		break; /* NOTREACHED */
-	case 'e':
-		return buf;
-	default:
-		if (isnum(*buf))
-			return bparsestr(bl, buf, len);
-
-		errx(1, "'%c' unexpected\n", *buf);
+	case 'l':
+	case 'd':
+		return *b->off;
 		break; /* NOTREACHED */
 	}
-	return buf;
+	return isdigit(*b->off) ? 's' : 0;
 }
 
 static int
-bdecode(char *buf, size_t len, struct blist *bl)
+bekv(struct be *b, char *k, size_t l, struct be *v)
 {
-	char *p = buf;
-	size_t s = len;
+        char *key = NULL;
+        size_t klen = 0;
+	struct be i;
 
-	if (!buf || !bl)
-		return -1;
+        if (!b)
+                return 0;
 
-	TAILQ_INIT(bl);
-	while (s > 1) {
-		p = bparseany(bl, p, s);
-		s = len - (p - buf);
-		p++;
-	}
+	if (*b->off != 'd')
+		return 0;
 
-	return 0;
+	beinit(&i, b->off, b->end - b->off + 1);
+
+        /* search the data 'till the end */
+        while (!belistover(&i) && bedictnext(&i, &key, &klen, v)) {
+                /* we found our key! */
+                if (!strncmp(k, key, MIN(l, klen)))
+                        return 1;
+
+                /* recursive call to search inner dictionaries */
+                if (betype(&i) == 'd' && bekv(&i, k, l, v))
+                        return 1;
+        }
+
+        /* couldn't find anything, sorry */
+        return 0;
 }
 
 static int
-bfree(struct blist *bl)
+bepath(struct be *b, char **p, size_t l)
 {
-	struct bdata *np = NULL;
-	while (!TAILQ_EMPTY(bl)) {
-		np = TAILQ_FIRST(bl);
-		switch(np->type) {
-		case 'd':
-		case 'l':
-			bfree(np->bl);
-			break;
-		}
-		TAILQ_REMOVE(bl, np, entries);
-		free(np);
+	char *s;
+	size_t r;
+	struct be i;
+
+	if (!b || betype(b) != 'l')
+		return 0;
+
+	beinit(&i, b->off, b->end - b->off + 1);
+
+	while(belistnext(&i) && !belistover(&i)) {
+		if (!bestr(&i, &s, &r))
+			continue;
+		strncat(*p, "/", l);
+		strncat(*p, s, r);
 	}
-	free(bl);
-	return 0;
-}
-
-/*
- * Search a key within a bencoded data structure recursively.
- * each data element has to be a string, except for the very
- * first element which CAN be a dictionary.
- *
- * When we encounter a dictionary, the function will be called on this
- * dictionary so we can find nested keys.
- *
- * Because of this search algorithm, only the first occurence of each
- * key will be retrieved.
- * This should not be an issue as torrent files are not supposed to
- * appear twice, except for multifile torrent. For them, this function
- * can be called for each element of the "files" list.
- */
-static struct bdata *
-bsearchkey(const struct blist *bl, const char *key)
-{
-	struct bdata *np;
-	if (key == NULL) return NULL;
-	TAILQ_FOREACH(np, bl, entries) {
-		switch(np->type) {
-		case 's':
-			if (strlen(key) == np->len && !strncmp(key, np->str, np->len))
-				return TAILQ_NEXT(np, entries);
-			np = TAILQ_NEXT(np, entries);
-		case 'd': /* FALLTHROUGH */
-			if (np->type == 'd')
-				return bsearchkey(np->bl, key);
-			break;
-		default:
-			return NULL;
-		}
-
-	}
-	return NULL;
-}
-
-static size_t
-bcountlist(const struct blist *bl)
-{
-	int n = 0;
-	struct bdata *np;
-
-	TAILQ_FOREACH(np, bl, entries)
-		n++;
-
-	return n;
-}
-
-static size_t
-bpathfmt(const struct blist *bl, char *path)
-{
-	struct bdata *np;
-
-	TAILQ_FOREACH(np, bl, entries) {
-		path[strlen(path)] = '/';
-		strncat(path, np->str, np->len);
-	}
-
-	return strlen(path);
+	return 1;
 }
 
 static size_t
