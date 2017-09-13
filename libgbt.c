@@ -459,7 +459,7 @@ metainfohash(struct torrent *to)
 	if (!benext(&info))
 		return 0;
 
-	return sha1((unsigned char *)sp, info.off - sp, to->infohash);
+	return !sha1((unsigned char *)sp, info.off - sp, to->infohash);
 }
 
 static size_t
@@ -487,18 +487,21 @@ metafiles(struct torrent *to)
 	int i = 0;
 	size_t l;
 	char *sp, name[PATH_MAX];
-	struct be n, f, v;
+	struct be info, n, f, v;
 
-	if (!bekv(&to->meta, "name", 4, &n))
+	if (!bekv(&to->meta, "info", 4, &info))
+		return 0;
+	if (!bekv(&info, "name", 4, &n))
 		return 0;
 	if (!bestr(&n, &sp, &l))
 		return 0;
+
 
 	memset(name, 0, PATH_MAX);
 	memcpy(name, sp, MIN(PATH_MAX, l));
 
 	to->size = 0;
-	if (bekv(&to->meta, "files", 5, &f)) { /* multi-file torrent */
+	if (bekv(&info, "files", 5, &f)) { /* multi-file torrent */
 		for (i = 0; belistnext(&f) && !belistover(&f); i++) {
 			to->files = realloc(to->files, sizeof(*to->files) * i);
 			if (!bekv(&f, "length", 6, &v))
@@ -516,14 +519,16 @@ metafiles(struct torrent *to)
 		to->filnum = i;
 	} else { /* single-file torrent */
 		to->files = emalloc(sizeof(*to->files));
-		if (!bekv(&f, "length", 6, &v))
+		if (!bekv(&info, "length", 6, &v)) {
 			return 0;
+		}
 		beint(&v, (long *)&to->files[0].len);
 		to->size += to->files[0].len;
 		memset(to->files[0].path, 0, PATH_MAX);
 		memcpy(to->files[0].path, name, l);
 		to->filnum = 1;
 	}
+
 	return to->filnum;
 }
 
@@ -532,9 +537,11 @@ metapieces(struct torrent *to)
 {
 	size_t i;
 	uint8_t *sha1 = NULL;
-	struct be v;
+	struct be info, v;
 
-	if (!bekv(&to->meta, "piece length", 12, &v))
+	if (!bekv(&to->meta, "info", 4, &info))
+		return 0;
+	if (!bekv(&info, "piece length", 12, &v))
 		return 0;
 
 	if (!beint(&v, (long *)&to->piecelen))
@@ -558,8 +565,9 @@ metainfo(struct torrent *to, char *buf, size_t len)
 {
 	to->upload = 0;
 	to->download = 0;
+	to->peers = NULL;
+	memset(to->peerid, 0, 21);
 	memcpy(to->peerid, PEERID, 20);
-	to->peerid[20] = 0;
 	beinit(&to->meta, buf, len);
 
 	metainfohash(to);
@@ -836,10 +844,7 @@ pwprecv(struct peer *p, uint8_t *buf, ssize_t *len)
 
 	if (r < 0) perror("recv");
 	if (*len < 1) return -1;
-	if (*len < 2) {
-		fprintf(stderr, "Message too short: %lu\n", buf[0]);
-		return -1;
-	}
+	if (*len < 2) errx(1, "Message too short\n", buf[0]);
 
 	if (buf[0] > NUM_PWP_TYPES)
 		return PWP_HANDSHAKE;
