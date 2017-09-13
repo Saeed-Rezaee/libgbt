@@ -59,8 +59,7 @@ TAILQ_HEAD(peers, peer);
 
 struct torrent {
 	char announce[PATH_MAX];
-	char *buf;
-	struct blist meta;
+	struct be meta;
 	uint8_t peerid[21];
 	uint8_t infohash[20];
 	uint8_t *bitfield;

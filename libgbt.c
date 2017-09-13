@@ -33,7 +33,6 @@ static size_t curlwrite(char *, size_t, size_t, struct buffer *);
 static uint8_t *setbit(uint8_t *, off_t);
 static uint8_t *clrbit(uint8_t *, off_t);
 
-static int    isnum(char);
 static char * tohex(uint8_t *, char *, size_t);
 static char * tostr(char *, size_t);
 static char * urlencode(uint8_t *, size_t);
@@ -58,9 +57,8 @@ static size_t metafiles(struct torrent *);
 static size_t metapieces(struct torrent *);
 
 static size_t bstr2peer(struct peers *, char *, size_t);
-static size_t blist2peer(struct peers *, struct blist *);
 
-static int httpsend(struct torrent *, char *, struct blist *);
+static int httpsend(struct torrent *, char *, struct be *);
 static size_t pwpmsg(uint8_t *, int, uint8_t *, uint32_t);
 
 static int pwphandshake(struct torrent *, struct peer *);
@@ -85,6 +83,15 @@ emalloc(size_t s)
 	return p;
 }
 
+static size_t
+curlwrite(char *ptr, size_t size, size_t nmemb, struct buffer *userdata)
+{
+	userdata->buf = realloc(userdata->buf, userdata->siz + size*nmemb);
+	memcpy(userdata->buf + userdata->siz, ptr, size*nmemb);
+	userdata->siz += size*nmemb;
+	return userdata->siz;
+}
+
 static uint8_t *
 setbit(uint8_t *bits, off_t off)
 {
@@ -97,11 +104,6 @@ clrbit(uint8_t *bits, off_t off)
 {
 	bits[off / sizeof(*bits)] &= ~(1 << off);
 	return bits;
-}
-
-static int
-isnum(char c) {
-	return (c >= '0' && c <= '9');
 }
 
 static char *
@@ -447,56 +449,79 @@ bepath(struct be *b, char **p, size_t l)
 static size_t
 metainfohash(struct torrent *to)
 {
-	struct bdata *np = NULL;
+	char *sp;
+	struct be info;
 
-	np = bsearchkey(&to->meta, "info");
-	return sha1((unsigned char *)np->s, np->e - np->s + 1, to->infohash);
+	if (!bekv(&to->meta, "info", 4, &info))
+		return 0;
+
+	sp = info.off;
+	if (!benext(&info))
+		return 0;
+
+	return sha1((unsigned char *)sp, info.off - sp, to->infohash);
 }
 
 static size_t
 metaannounce(struct torrent *to)
 {
-	struct bdata *np = NULL;
 
-	np = bsearchkey(&to->meta, "announce");
+	char *sp;
+	size_t l;
+	struct be announce;
+
+	if (!bekv(&to->meta, "announce", 8, &announce))
+		return 0;
+	if (!bestr(&announce, &sp, &l))
+		return 0;
+
 	memset(to->announce, 0, PATH_MAX);
-	memcpy(to->announce, np->str, np->len);
+	memcpy(to->announce, sp, MIN(PATH_MAX, l));
 
-	return np->len;
+	return l;
 }
 
 static size_t
 metafiles(struct torrent *to)
 {
 	int i = 0;
-	size_t namelen = 0;
-	char name[PATH_MAX];
-	struct bdata *np;
-	struct blist *head;
+	size_t l;
+	char *sp, name[PATH_MAX];
+	struct be n, f, v;
 
-	np = bsearchkey(&to->meta, "name");
-	namelen = np->len;
+	if (!bekv(&to->meta, "name", 4, &n))
+		return 0;
+	if (!bestr(&n, &sp, &l))
+		return 0;
+
 	memset(name, 0, PATH_MAX);
-	memcpy(name, np->str, MIN(namelen, PATH_MAX - 1));
+	memcpy(name, sp, MIN(PATH_MAX, l));
 
 	to->size = 0;
-	np = bsearchkey(&to->meta, "files");
-	if (np) { /* multi-file torrent */
-		head = np->bl;
-		to->filnum = bcountlist(head);
-		to->files = emalloc(sizeof(*to->files) * bcountlist(head));
-		TAILQ_FOREACH(np, head, entries) {
-			to->files[i].len  = bsearchkey(np->bl, "length")->num;
+	if (bekv(&to->meta, "files", 5, &f)) { /* multi-file torrent */
+		for (i = 0; belistnext(&f) && !belistover(&f); i++) {
+			to->files = realloc(to->files, sizeof(*to->files) * i);
+			if (!bekv(&f, "length", 6, &v))
+				return 0;
+			beint(&v, (long *)&to->files[i].len);
 			to->size += to->files[i].len;
+
 			memset(to->files[i].path, 0, PATH_MAX);
-			memcpy(to->files[i].path, name, namelen);
-			bpathfmt(bsearchkey(np->bl, "path")->bl, to->files[i].path);
-			i++;
+			memcpy(to->files[i].path, name, l);
+			if (!bekv(&f, "path", 4, &v))
+				return 0;
+			sp = to->files[i].path;
+			bepath(&v, &sp, PATH_MAX);
 		}
+		to->filnum = i;
 	} else { /* single-file torrent */
 		to->files = emalloc(sizeof(*to->files));
-		to->files[0].len = bsearchkey(&to->meta, "length")->num;
-		strcpy(to->files[0].path, name);
+		if (!bekv(&f, "length", 6, &v))
+			return 0;
+		beint(&v, (long *)&to->files[0].len);
+		to->size += to->files[0].len;
+		memset(to->files[0].path, 0, PATH_MAX);
+		memcpy(to->files[0].path, name, l);
 		to->filnum = 1;
 	}
 	return to->filnum;
@@ -507,8 +532,14 @@ metapieces(struct torrent *to)
 {
 	size_t i;
 	uint8_t *sha1 = NULL;
+	struct be v;
 
-	to->piecelen = bsearchkey(&to->meta, "piece length")->num;
+	if (!bekv(&to->meta, "piece length", 12, &v))
+		return 0;
+
+	if (!beint(&v, (long *)&to->piecelen))
+		return 0;
+
 	to->pcsnum = to->size/to->piecelen + !!(to->size%to->piecelen);
 	to->bitfield = emalloc(to->pcsnum / sizeof(*to->bitfield));
 	to->pieces = emalloc(to->pcsnum * sizeof(*to->pieces));
@@ -525,12 +556,11 @@ metapieces(struct torrent *to)
 int
 metainfo(struct torrent *to, char *buf, size_t len)
 {
-	to->buf = buf;
 	to->upload = 0;
 	to->download = 0;
 	memcpy(to->peerid, PEERID, 20);
 	to->peerid[20] = 0;
-	bdecode(to->buf, len, &to->meta);
+	beinit(&to->meta, buf, len);
 
 	metainfohash(to);
 	metaannounce(to);
@@ -552,30 +582,6 @@ piecereqrand(struct torrent *to)
 }
 
 static size_t
-blist2peer(struct peers *ph, struct blist *peers)
-{
-	struct bdata *np, *tmp;
-	struct peer *p;
-
-	TAILQ_FOREACH(np, peers, entries) {
-		p = emalloc(sizeof(*p));
-		p->choked = 1;
-		p->interrested = 0;
-		p->peer.sin_family = AF_INET;
-
-		tmp = bsearchkey(np->bl, "port");
-		p->peer.sin_port = tmp->num;
-
-		tmp = bsearchkey(np->bl, "ip");
-		inet_pton(AF_INET, tostr(tmp->str, tmp->len), &p->peer.sin_addr);
-
-		TAILQ_INSERT_HEAD(ph, p, entries);
-	}
-
-	return bcountlist(peers);
-}
-
-static size_t
 bstr2peer(struct peers *ph, char *buf, size_t len)
 {
 	size_t i;
@@ -593,26 +599,18 @@ bstr2peer(struct peers *ph, char *buf, size_t len)
 		p->peer.sin_family = AF_INET;
 		memcpy(&p->peer.sin_port, &buf[i * 6] + 4, 2);
 		memcpy(&p->peer.sin_addr, &buf[i * 6], 4);
-		TAILQ_INSERT_TAIL(ph, p, entries);
+		if (p->peer.sin_port != 65535)
+			TAILQ_INSERT_TAIL(ph, p, entries);
 	}
 
 	return i;
 }
 
-static size_t
-curlwrite(char *ptr, size_t size, size_t nmemb, struct buffer *userdata)
-{
-	userdata->buf = realloc(userdata->buf, userdata->siz + size*nmemb);
-	memcpy(userdata->buf + userdata->siz, ptr, size*nmemb);
-	userdata->siz += size*nmemb;
-	return userdata->siz;
-}
-
 static int
-httpsend(struct torrent *to, char *ev, struct blist *reply)
+httpsend(struct torrent *to, char *ev, struct be *reply)
 {
+	static struct buffer b;
 	char  url[PATH_MAX] = {0};
-	struct buffer b;
 	CURL *c;
 	CURLcode r;
 
@@ -636,7 +634,7 @@ httpsend(struct torrent *to, char *ev, struct blist *reply)
 	if (r != CURLE_OK)
 		errx(1, "%s", curl_easy_strerror(r));
 
-	return bdecode(b.buf, b.siz, reply);
+	return beinit(reply, b.buf, b.siz);
 }
 
 static struct peer *
@@ -651,14 +649,15 @@ findpeer(struct peers *ph, struct peer *p)
 }
 
 static int
-updatepeers(struct torrent *to, struct blist *reply)
+updatepeers(struct torrent *to, struct be *reply)
 {
-	size_t n = 0;
+	char *s;
+	size_t l, n = 0;
 	struct peers ph;
 	struct peer *p;
-	struct bdata *np;
+	struct be v;
 
-	if (!(np = bsearchkey(reply, "peers")))
+	if (!bekv(reply, "peers", 5, &v))
 		return -1;
 
 	if (!to->peers) {
@@ -668,15 +667,13 @@ updatepeers(struct torrent *to, struct blist *reply)
 
 	TAILQ_INIT(&ph);
 
-	switch (np->type) {
+	switch (betype(&v)) {
 	case 's':
-		bstr2peer(&ph, np->str, np->len);
-		break;
-	case 'l':
-		blist2peer(&ph, np->bl);
+		if (bestr(&v, &s, &l))
+			bstr2peer(&ph, s, l);
 		break;
 	default:
-		errx(1, "'%c': Unsupported type for peers", np->type);
+		errx(1, "'%c': Unsupported type for peers", betype(&v));
 	}
 
 	/* Add new peers */
@@ -698,21 +695,22 @@ updatepeers(struct torrent *to, struct blist *reply)
 int
 thpsend(struct torrent *to, int ev)
 {
-	int interval = 0;
-	struct bdata *np;
-	struct blist reply;
+	char *s;
+	size_t l;
+	long interval = 0;
+	struct be reply, v;
 
 	httpsend(to, event[ev], &reply);
 
-	np = bsearchkey(&reply, "failure reason");
-	if (np)
-		errx(1, "%s: %s", to->announce, tostr(np->str, np->len));
+	if (bekv(&reply, "failure reason", 14, &v)) {
+		bestr(&v, &s, &l);
+		errx(1, "%s: %s", to->announce, tostr(s, l));
+	}
 
-	np = bsearchkey(&reply, "interval");
-	if (!np)
+	if (!bekv(&reply, "interval", 8, &v))
 		errx(1, "Missing key 'interval'");
 
-	interval = np->num;
+	beint(&v, &interval);
 	updatepeers(to, &reply);
 
 	return interval;
@@ -830,11 +828,18 @@ pwpsend(struct torrent *to, struct peer *p, int type, void *data)
 int
 pwprecv(struct peer *p, uint8_t *buf, ssize_t *len)
 {
-	*len = recv(p->sockfd, buf, MESSAGE_MAX, 0);
+	ssize_t r;
 
-	if (*len < 0) perror("recv");
+
+	while ((r = recv(p->sockfd, buf, MESSAGE_MAX, 0)) > 0)
+		*len += r;
+
+	if (r < 0) perror("recv");
 	if (*len < 1) return -1;
-	if (*len < 2) errx(1, "Message too short");
+	if (*len < 2) {
+		fprintf(stderr, "Message too short: %lu\n", buf[0]);
+		return -1;
+	}
 
 	if (buf[0] > NUM_PWP_TYPES)
 		return PWP_HANDSHAKE;
