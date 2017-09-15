@@ -62,8 +62,17 @@ static int httpsend(struct torrent *, char *, struct be *);
 
 static struct piece piecereqrand(struct torrent *to);
 
-static int pwphandshake(struct torrent *, struct peer *);
-static size_t pwpfmt(uint8_t *, int, uint8_t *, uint32_t);
+static int pwpinit(struct peer *p);
+static int pwprecv(struct peer *p, uint8_t *buf, ssize_t *len);
+static size_t pwpfmt(uint8_t *msg, int type, uint8_t *payload, uint32_t len);
+static ssize_t pwpstate(struct peer *p, int type);
+static ssize_t pwphandshake(struct torrent *to, struct peer *p);
+static ssize_t pwphave(struct peer *p, uint16_t off);
+static ssize_t pwpbitfield(struct peer *p, uint8_t *bf, size_t n);
+static ssize_t pwprequest(struct peer *p, off_t op, off_t ob, size_t sb);
+static ssize_t pwppiece(struct peer *p, off_t op, off_t ob, size_t bs, uint8_t *b);
+static ssize_t pwpcancel(struct peer *p, off_t op, off_t ob, size_t sb);
+static ssize_t pwpheartbeat(struct peer *p);
 
 static char *event[] = {
 	[THP_NONE]      = NULL,
@@ -725,7 +734,7 @@ thpsend(struct torrent *to, int ev)
 	return interval;
 }
 
-int
+static int
 pwpinit(struct peer *p)
 {
 	int flags;
@@ -745,7 +754,7 @@ pwpinit(struct peer *p)
 	return connect(p->sockfd, (struct sockaddr *)&p->peer, sizeof(p->peer));
 }
 
-int
+static int
 pwprecv(struct peer *p, uint8_t *buf, ssize_t *len)
 {
 	ssize_t r;
@@ -762,25 +771,6 @@ pwprecv(struct peer *p, uint8_t *buf, ssize_t *len)
 		return PWP_HANDSHAKE;
 
 	return buf[0];
-}
-
-/*
- * ----------------------------------------------------------------
- * | Name Length | Protocol Name | Reserved | Info Hash | Peer ID |
- * ----------------------------------------------------------------
- *       1              19             8         20          20
- */
-static int
-pwphandshake(struct torrent *to, struct peer *p)
-{
-	uint8_t msg[68];
-
-	msg[0] = 19;
-	memcpy(msg + 1, "BitTorrent protocol", 19);
-	memcpy(msg + 28, to->infohash, 20);
-	memcpy(msg + 48, PEERID, 20);
-
-	return send(p->sockfd, msg, 68, 0);
 }
 
 /*
@@ -809,7 +799,7 @@ pwpfmt(uint8_t *msg, int type, uint8_t *payload, uint32_t len)
 /*
  * type can be "PWP_(UN)CHOKE" or "PWP_(UN)INTEREST"
  */
-ssize_t
+static ssize_t
 pwpstate(struct peer *p, int type)
 {
 	size_t l;
@@ -820,7 +810,20 @@ pwpstate(struct peer *p, int type)
 	return send(p->sockfd, msg, l, 0);
 }
 
-ssize_t
+static ssize_t
+pwphandshake(struct torrent *to, struct peer *p)
+{
+	uint8_t msg[68];
+
+	msg[0] = 19;
+	memcpy(msg + 1, "BitTorrent protocol", 19);
+	memcpy(msg + 28, to->infohash, 20);
+	memcpy(msg + 48, PEERID, 20);
+
+	return send(p->sockfd, msg, 68, 0);
+}
+
+static ssize_t
 pwphave(struct peer *p, uint16_t off)
 {
 	size_t l;
@@ -833,7 +836,7 @@ pwphave(struct peer *p, uint16_t off)
 	return send(p->sockfd, msg, l, 0);
 }
 
-ssize_t
+static ssize_t
 pwpbitfield(struct peer *p, uint8_t *bf, size_t n)
 {
 	size_t l;
@@ -845,7 +848,7 @@ pwpbitfield(struct peer *p, uint8_t *bf, size_t n)
 	return send(p->sockfd, msg, l, 0);
 }
 
-ssize_t
+static ssize_t
 pwprequest(struct peer *p, off_t op, off_t ob, size_t sb)
 {
 	size_t l;
@@ -860,7 +863,7 @@ pwprequest(struct peer *p, off_t op, off_t ob, size_t sb)
 	return send(p->sockfd, msg, l, 0);
 }
 
-ssize_t
+static ssize_t
 pwppiece(struct peer *p, off_t op, off_t ob, size_t bs, uint8_t *b)
 {
 	size_t l;
@@ -875,7 +878,7 @@ pwppiece(struct peer *p, off_t op, off_t ob, size_t bs, uint8_t *b)
 	return send(p->sockfd, msg, l, 0);
 }
 
-ssize_t
+static ssize_t
 pwpcancel(struct peer *p, off_t op, off_t ob, size_t sb)
 {
 	size_t l;
@@ -888,4 +891,11 @@ pwpcancel(struct peer *p, off_t op, off_t ob, size_t sb)
 	l = pwpfmt(sp, PWP_CANCEL, pl, 12);
 
 	return send(p->sockfd, msg, l, 0);
+}
+
+static ssize_t
+pwpheartbeat(struct peer *p)
+{
+	uint8_t siz = 0;
+	return send(p->sockfd, &siz, 1, 0);
 }
