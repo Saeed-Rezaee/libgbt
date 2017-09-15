@@ -59,10 +59,11 @@ static size_t metapieces(struct torrent *);
 static size_t bstr2peer(struct peers *, char *, size_t);
 
 static int httpsend(struct torrent *, char *, struct be *);
-static size_t pwpmsg(uint8_t *, int, uint8_t *, uint32_t);
+
+static struct piece piecereqrand(struct torrent *to);
 
 static int pwphandshake(struct torrent *, struct peer *);
-static uint32_t pwphave(struct torrent *, uint8_t *, uint32_t);
+static size_t pwpfmt(uint8_t *, int, uint8_t *, uint32_t);
 
 static char *event[] = {
 	[THP_NONE]      = NULL,
@@ -578,7 +579,7 @@ metainfo(struct torrent *to, char *buf, size_t len)
 	return 0;
 }
 
-struct piece
+static struct piece
 piecereqrand(struct torrent *to)
 {
 	uint32_t n;
@@ -744,6 +745,25 @@ pwpinit(struct peer *p)
 	return connect(p->sockfd, (struct sockaddr *)&p->peer, sizeof(p->peer));
 }
 
+int
+pwprecv(struct peer *p, uint8_t *buf, ssize_t *len)
+{
+	ssize_t r;
+
+
+	while ((r = recv(p->sockfd, buf, MESSAGE_MAX, 0)) > 0)
+		*len += r;
+
+	if (r < 0) perror("recv");
+	if (*len < 1) return -1;
+	if (*len < 2) errx(1, "Message too short\n", buf[0]);
+
+	if (buf[0] > NUM_PWP_TYPES)
+		return PWP_HANDSHAKE;
+
+	return buf[0];
+}
+
 /*
  * ----------------------------------------------------------------
  * | Name Length | Protocol Name | Reserved | Info Hash | Peer ID |
@@ -763,18 +783,6 @@ pwphandshake(struct torrent *to, struct peer *p)
 	return send(p->sockfd, msg, 68, 0);
 }
 
-static uint32_t
-pwphave(struct torrent *to, uint8_t *payload, uint32_t off)
-{
-	if (off >= to->pcsnum)
-		errx(1, "Piece index too high");
-
-	payload[0] = htonl(off);
-
-	setbit(to->bitfield, off);
-	return sizeof(off);
-}
-
 /*
  * -----------------------------------------
  * | Message Length | Message ID | Payload |
@@ -782,7 +790,7 @@ pwphave(struct torrent *to, uint8_t *payload, uint32_t off)
  *          4             1          ...
  */
 static size_t
-pwpmsg(uint8_t *msg, int type, uint8_t *payload, uint32_t len)
+pwpfmt(uint8_t *msg, int type, uint8_t *payload, uint32_t len)
 {
 	size_t i;
 	off_t off = 0;
@@ -798,56 +806,86 @@ pwpmsg(uint8_t *msg, int type, uint8_t *payload, uint32_t len)
 	return off;
 }
 
+/*
+ * type can be "PWP_(UN)CHOKE" or "PWP_(UN)INTEREST"
+ */
 ssize_t
-pwpsend(struct torrent *to, struct peer *p, int type, void *data)
+pwpstate(struct peer *p, int type)
 {
-	size_t len;
-	uint8_t msg[MESSAGE_MAX];
-	uint8_t payload[MESSAGE_MAX];
+	size_t l;
+	uint8_t msg[5];
+	uint8_t *sp = msg;
 
-	switch(type) {
-	case PWP_CHOKE:
-	case PWP_UNCHOKE:
-        case PWP_INTERESTED:
-        case PWP_UNINTERESTED:
-		len = pwpmsg(msg, type, NULL, 0);
-		break;
-        case PWP_BITFIELD:
-		len = sizeof(*to->bitfield) * to->pcsnum;
-		memcpy(payload, to->bitfield, len);
-		break;
-        case PWP_HAVE:
-		len = pwphave(to, payload, *((uint32_t *)data));
-		break;
-        case PWP_REQUEST:
-        case PWP_PIECE:
-        case PWP_CANCEL:
-		return -1;
-		break; /* NOTREACHED */
-	case PWP_HANDSHAKE:
-		return pwphandshake(to, p);
-		break; /* NOTREACHED */
-	}
-
-	len = pwpmsg(msg, type, payload, len);
-	return send(p->sockfd, msg, len, 0);
+	l = pwpfmt(sp, type, NULL, 0);
+	return send(p->sockfd, msg, l, 0);
 }
 
-int
-pwprecv(struct peer *p, uint8_t *buf, ssize_t *len)
+ssize_t
+pwphave(struct peer *p, uint16_t off)
 {
-	ssize_t r;
+	size_t l;
+	uint8_t msg[MESSAGE_MAX], pl[4];
+	uint8_t *sp = msg;
 
+	pl[0] = htonl(off);
+	l = pwpfmt(sp, PWP_HAVE, pl, 2);
 
-	while ((r = recv(p->sockfd, buf, MESSAGE_MAX, 0)) > 0)
-		*len += r;
+	return send(p->sockfd, msg, l, 0);
+}
 
-	if (r < 0) perror("recv");
-	if (*len < 1) return -1;
-	if (*len < 2) errx(1, "Message too short\n", buf[0]);
+ssize_t
+pwpbitfield(struct peer *p, uint8_t *bf, size_t n)
+{
+	size_t l;
+	uint8_t msg[MESSAGE_MAX];
+	uint8_t *sp = msg;
 
-	if (buf[0] > NUM_PWP_TYPES)
-		return PWP_HANDSHAKE;
+	l = pwpfmt(sp, PWP_BITFIELD, bf, n / sizeof(*bf));
 
-	return buf[0];
+	return send(p->sockfd, msg, l, 0);
+}
+
+ssize_t
+pwprequest(struct peer *p, off_t op, off_t ob, size_t sb)
+{
+	size_t l;
+	uint8_t msg[MESSAGE_MAX], pl[12];
+	uint8_t *sp = msg;
+
+	pl[0] = htonl(op);
+	pl[4] = htonl(ob);
+	pl[8] = htonl(sb);
+	l = pwpfmt(sp, PWP_REQUEST, pl, 12);
+
+	return send(p->sockfd, msg, l, 0);
+}
+
+ssize_t
+pwppiece(struct peer *p, off_t op, off_t ob, size_t bs, uint8_t *b)
+{
+	size_t l;
+	uint8_t msg[MESSAGE_MAX], pl[MESSAGE_MAX];
+	uint8_t *sp = msg;
+
+	pl[0] = htonl(op);
+	pl[4] = htonl(ob);
+	memcpy(pl, b, MIN(MESSAGE_MAX - 8, bs));
+	l = pwpfmt(sp, PWP_PIECE, pl, bs + 8);
+
+	return send(p->sockfd, msg, l, 0);
+}
+
+ssize_t
+pwpcancel(struct peer *p, off_t op, off_t ob, size_t sb)
+{
+	size_t l;
+	uint8_t msg[MESSAGE_MAX], pl[12];
+	uint8_t *sp = msg;
+
+	pl[0] = htonl(op);
+	pl[4] = htonl(ob);
+	pl[8] = htonl(sb);
+	l = pwpfmt(sp, PWP_CANCEL, pl, 12);
+
+	return send(p->sockfd, msg, l, 0);
 }
