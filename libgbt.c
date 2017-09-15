@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include <sys/socket.h>
+#include <sys/stat.h>
 
 #include <arpa/inet.h>
 #include <curl/curl.h>
@@ -55,24 +56,28 @@ static size_t metainfohash(struct torrent *);
 static size_t metaannounce(struct torrent *);
 static size_t metafiles(struct torrent *);
 static size_t metapieces(struct torrent *);
-
-static size_t bstr2peer(struct peers *, char *, size_t);
-
-static int httpsend(struct torrent *, char *, struct be *);
+static int metainfo(struct torrent *, char *, size_t);
 
 static struct piece piecereqrand(struct torrent *to);
 
-static int pwpinit(struct peer *p);
-static int pwprecv(struct peer *p, uint8_t *buf, ssize_t *len);
-static size_t pwpfmt(uint8_t *msg, int type, uint8_t *payload, uint32_t len);
-static ssize_t pwpstate(struct peer *p, int type);
-static ssize_t pwphandshake(struct torrent *to, struct peer *p);
-static ssize_t pwphave(struct peer *p, uint16_t off);
-static ssize_t pwpbitfield(struct peer *p, uint8_t *bf, size_t n);
-static ssize_t pwprequest(struct peer *p, off_t op, off_t ob, size_t sb);
-static ssize_t pwppiece(struct peer *p, off_t op, off_t ob, size_t bs, uint8_t *b);
-static ssize_t pwpcancel(struct peer *p, off_t op, off_t ob, size_t sb);
-static ssize_t pwpheartbeat(struct peer *p);
+static size_t bstr2peer(struct peers *, char *, size_t);
+static int httpsend(struct torrent *, char *, struct be *);
+static struct peer * findpeer(struct peers *, struct peer *);
+static int updatepeers(struct torrent *, struct be *);
+static int thpsend(struct torrent *, int);
+
+
+static int pwpinit(struct peer *);
+static int pwprecv(struct peer *, uint8_t *, ssize_t *);
+static size_t pwpfmt(uint8_t *, int, uint8_t *, uint32_t);
+static ssize_t pwpstate(struct peer *, int);
+static ssize_t pwphandshake(struct torrent *, struct peer *);
+static ssize_t pwphave(struct peer *, uint16_t);
+static ssize_t pwpbitfield(struct peer *, uint8_t *, size_t);
+static ssize_t pwprequest(struct peer *, off_t, off_t, size_t);
+static ssize_t pwppiece(struct peer *, off_t, off_t, size_t, uint8_t *);
+static ssize_t pwpcancel(struct peer *, off_t, off_t, size_t);
+static ssize_t pwpheartbeat(struct peer *);
 
 static char *event[] = {
 	[THP_NONE]      = NULL,
@@ -570,7 +575,7 @@ metapieces(struct torrent *to)
 	return to->pcsnum;
 }
 
-int
+static int
 metainfo(struct torrent *to, char *buf, size_t len)
 {
 	to->upload = 0;
@@ -710,7 +715,7 @@ updatepeers(struct torrent *to, struct be *reply)
 	return n;
 }
 
-int
+static int
 thpsend(struct torrent *to, int ev)
 {
 	char *s;
@@ -898,4 +903,43 @@ pwpheartbeat(struct peer *p)
 {
 	uint8_t siz = 0;
 	return send(p->sockfd, &siz, 1, 0);
+}
+
+int
+grizzly_load(struct torrent *to, char *path)
+{
+	FILE *f;
+	char *buf;
+	struct stat sb;
+
+	/* read torrent file into a memory buffer */
+	if (stat(path, &sb)) {
+		perror(path);
+		return -1;
+	}
+	if (!(f = fopen(path, "r"))) {
+		perror(path);
+		return -1;
+	}
+	buf = malloc(sb.st_size);
+	fread(buf, 1, sb.st_size, f);
+	buf[sb.st_size - 1] = '\0';
+	fclose(f);
+
+	if (metainfo(to, buf, sb.st_size)) {
+		fprintf(stderr, "%s: Failed to load torrent\n", path);
+		free(buf);
+		return 0;
+	}
+
+	if (thpsend(to, THP_STARTED) < 0)
+		return 0;
+
+	return 1;
+}
+
+int
+grizzly_download(struct torrent *to)
+{
+	return 1;
 }

@@ -74,5 +74,5 @@ struct torrent {
 	struct peers *peers;
 };
 
-int metainfo(struct torrent *, char *, size_t len);
-int thpsend(struct torrent *to, int ev);
+int grizzly_load(struct torrent *, char *);
+int grizzly_download(struct torrent *to);
