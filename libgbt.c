@@ -511,15 +511,15 @@ metafiles(struct torrent *to)
 	if (!bestr(&n, &sp, &l))
 		return 0;
 
-
 	memset(name, 0, PATH_MAX);
 	memcpy(name, sp, MIN(PATH_MAX, l));
 
 	to->size = 0;
+	to->files = NULL;
 	if (bekv(&info, "files", 5, &f)) { /* multi-file torrent */
 		for (i = 0; belistnext(&f) && !belistover(&f); i++) {
-			to->files = realloc(to->files, sizeof(*to->files) * i);
-			if (!bekv(&f, "length", 6, &v))
+			to->files = realloc(to->files, sizeof(*to->files) * (i+1));
+			if (!to->files || !bekv(&f, "length", 6, &v))
 				return 0;
 			beint(&v, (long *)&to->files[i].len);
 			to->size += to->files[i].len;
@@ -534,9 +534,8 @@ metafiles(struct torrent *to)
 		to->filnum = i;
 	} else { /* single-file torrent */
 		to->files = emalloc(sizeof(*to->files));
-		if (!bekv(&info, "length", 6, &v)) {
+		if (!bekv(&info, "length", 6, &v))
 			return 0;
-		}
 		beint(&v, (long *)&to->files[0].len);
 		to->size += to->files[0].len;
 		memset(to->files[0].path, 0, PATH_MAX);
@@ -770,7 +769,7 @@ pwprecv(struct peer *p, uint8_t *buf, ssize_t *len)
 
 	if (r < 0) perror("recv");
 	if (*len < 1) return -1;
-	if (*len < 2) errx(1, "Message too short\n", buf[0]);
+	if (*len < 2) errx(1, "Message too short\n");
 
 	if (buf[0] > NUM_PWP_TYPES)
 		return PWP_HANDSHAKE;
