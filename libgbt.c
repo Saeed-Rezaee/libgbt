@@ -817,7 +817,7 @@ pwpstate(struct peer *p, int type)
 	uint8_t *sp = msg;
 
 	l = pwpfmt(sp, type, NULL, 0);
-	return send(p->sockfd, msg, l, 0);
+	return send(p->sockfd, msg, l, MSG_NOSIGNAL);
 }
 
 static ssize_t
@@ -830,7 +830,7 @@ pwphandshake(struct torrent *to, struct peer *p)
 	memcpy(msg + 28, to->infohash, 20);
 	memcpy(msg + 48, PEERID, 20);
 
-	return send(p->sockfd, msg, 68, 0);
+	return send(p->sockfd, msg, 68, MSG_NOSIGNAL);
 }
 
 static ssize_t
@@ -843,7 +843,7 @@ pwphave(struct peer *p, uint16_t off)
 	pl[0] = htonl(off);
 	l = pwpfmt(sp, PWP_HAVE, pl, 2);
 
-	return send(p->sockfd, msg, l, 0);
+	return send(p->sockfd, msg, l, MSG_NOSIGNAL);
 }
 
 static ssize_t
@@ -855,7 +855,7 @@ pwpbitfield(struct peer *p, uint8_t *bf, size_t n)
 
 	l = pwpfmt(sp, PWP_BITFIELD, bf, n / sizeof(*bf));
 
-	return send(p->sockfd, msg, l, 0);
+	return send(p->sockfd, msg, l, MSG_NOSIGNAL);
 }
 
 static ssize_t
@@ -870,7 +870,7 @@ pwprequest(struct peer *p, off_t op, off_t ob, size_t sb)
 	pl[8] = htonl(sb);
 	l = pwpfmt(sp, PWP_REQUEST, pl, 12);
 
-	return send(p->sockfd, msg, l, 0);
+	return send(p->sockfd, msg, l, MSG_NOSIGNAL);
 }
 
 static ssize_t
@@ -885,7 +885,7 @@ pwppiece(struct peer *p, off_t op, off_t ob, size_t bs, uint8_t *b)
 	memcpy(pl, b, MIN(MESSAGE_MAX - 8, bs));
 	l = pwpfmt(sp, PWP_PIECE, pl, bs + 8);
 
-	return send(p->sockfd, msg, l, 0);
+	return send(p->sockfd, msg, l, MSG_NOSIGNAL);
 }
 
 static ssize_t
@@ -900,14 +900,14 @@ pwpcancel(struct peer *p, off_t op, off_t ob, size_t sb)
 	pl[8] = htonl(sb);
 	l = pwpfmt(sp, PWP_CANCEL, pl, 12);
 
-	return send(p->sockfd, msg, l, 0);
+	return send(p->sockfd, msg, l, MSG_NOSIGNAL);
 }
 
 static ssize_t
 pwpheartbeat(struct peer *p)
 {
 	uint8_t siz = 0;
-	return send(p->sockfd, &siz, 1, 0);
+	return send(p->sockfd, &siz, 1, MSG_NOSIGNAL);
 }
 
 int
