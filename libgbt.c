@@ -973,9 +973,10 @@ handshakeisvalid(struct torrent *to, uint8_t *hs, size_t l)
 }
 
 int
-grizzly_load(struct torrent *to, char *path)
+grizzly_load(struct torrent *to, char *path, long *thpinterval)
 {
 	FILE *f;
+	long i;
 	char *buf;
 	struct stat sb;
 	struct peer *p;
@@ -1000,13 +1001,29 @@ grizzly_load(struct torrent *to, char *path)
 		return 0;
 	}
 
-	if (thpsend(to, THP_STARTED) < 0)
+	if ((i = thpsend(to, THP_STARTED)) < 0)
 		return 0;
+
+	if (thpinterval)
+		*thpinterval = i;
 
 	TAILQ_FOREACH(p, to->peers, entries) {
 		pwpinit(p);
 		p->conn = CONN_INIT;
 	}
+
+	return 1;
+}
+
+int
+grizzly_thpheartbeat(struct torrent *to, long *thpinterval)
+{
+	long i;
+	if ((i = thpsend(to, THP_NONE)) < 0)
+		return 0;
+
+	if (thpinterval)
+		*thpinterval = i;
 
 	return 1;
 }
@@ -1085,10 +1102,4 @@ grizzly_finished(struct torrent *to)
 			return 0;
 	}
 	return 1;
-}
-
-int
-grizzly_thpheartbeat(struct torrent *to)
-{
-	return thpsend(to, THP_NONE);
 }

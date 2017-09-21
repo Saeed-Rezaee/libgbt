@@ -87,7 +87,7 @@ struct torrent {
 	struct peers *peers;
 };
 
-int grizzly_load(struct torrent *, char *);
+int grizzly_load(struct torrent *, char *, long *);
+int grizzly_heartbeat(struct torrent *to, long *);
 int grizzly_leech(struct torrent *to);
 int grizzly_finished(struct torrent *to);
-int grizzly_heartbeat(struct torrent *to);
