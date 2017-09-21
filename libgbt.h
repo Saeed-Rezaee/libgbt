@@ -89,3 +89,4 @@ struct torrent {
 
 int grizzly_load(struct torrent *, char *);
 int grizzly_download(struct torrent *to);
+int grizzly_finished(struct torrent *to);

@@ -1071,3 +1071,14 @@ grizzly_download(struct torrent *to)
 
 	return 1;
 }
+
+int
+grizzly_finished(struct torrent *to)
+{
+	size_t i;
+	for (i = 0; i < to->pcsnum; i++) {
+		if (!bit(to->bitfield, i))
+			return 0;
+	}
+	return 1;
+}
