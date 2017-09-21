@@ -69,7 +69,7 @@ static int thpsend(struct torrent *, int);
 
 static int pwpinit(struct peer *);
 static ssize_t pwprecv(struct peer *, uint8_t *);
-static size_t pwpfmt(uint8_t *, int, uint8_t *, uint32_t);
+static ssize_t pwpfmt(uint8_t *, int, uint8_t *, uint32_t);
 static ssize_t pwpstate(struct peer *, int);
 static ssize_t pwphandshake(struct torrent *, struct peer *);
 static ssize_t pwphave(struct peer *, uint16_t);
@@ -799,11 +799,14 @@ pwprecv(struct peer *p, uint8_t *buf)
  * -----------------------------------------
  *          4             1          ...
  */
-static size_t
+static ssize_t
 pwpfmt(uint8_t *msg, int type, uint8_t *payload, uint32_t len)
 {
 	size_t i;
 	off_t off = 0;
+
+	if (!msg)
+		return -1;
 
 	msg[off] = htonl(len + 1);
 	off += 4;
