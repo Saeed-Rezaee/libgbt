@@ -77,6 +77,7 @@ static ssize_t pwprequest(struct peer *, off_t, off_t, size_t);
 static ssize_t pwppiece(struct peer *, off_t, off_t, size_t, uint8_t *);
 static ssize_t pwpcancel(struct peer *, off_t, off_t, size_t);
 static ssize_t pwpheartbeat(struct peer *);
+static int pwprecvhandler(struct torrent *, struct peer *, uint8_t *, ssize_t);
 
 static char *event[] = {
 	[THP_NONE]      = NULL,
@@ -908,6 +909,34 @@ pwpheartbeat(struct peer *p)
 {
 	uint8_t siz = 0;
 	return send(p->sockfd, &siz, 1, MSG_NOSIGNAL);
+}
+
+static int
+pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
+{
+	int n;
+
+	n = msg[0] > NUM_PWP_TYPES ? PWP_HANDSHAKE : msg[0];
+	if (n >= 0 && l > 0 && n < NUM_PWP_TYPES) {
+		switch (n) {
+		case PWP_CHOKE:
+			p->state |= PEER_CHOKED;
+			break;
+		case PWP_UNCHOKE:
+			p->state &= ~PEER_CHOKED;
+			break;
+		case PWP_INTERESTED:
+			p->state |= PEER_INTERESTED;
+			break;
+		case PWP_UNINTERESTED:
+			p->state &= ~PEER_INTERESTED;
+			break;
+		default:
+			printf("Message %d unknown\n", n);
+			return 0;
+		}
+	}
+	return 1;
 }
 
 int
