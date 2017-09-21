@@ -1086,3 +1086,9 @@ grizzly_finished(struct torrent *to)
 	}
 	return 1;
 }
+
+int
+grizzly_thpheartbeat(struct torrent *to)
+{
+	return thpsend(to, THP_NONE);
+}
