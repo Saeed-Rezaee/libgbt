@@ -79,6 +79,8 @@ static ssize_t pwpcancel(struct peer *, off_t, off_t, size_t);
 static ssize_t pwpheartbeat(struct peer *);
 static int pwprecvhandler(struct torrent *, struct peer *, uint8_t *, ssize_t);
 
+static int handshakeisvalid(struct torrent *, uint8_t *, size_t);
+
 static char *event[] = {
 	[THP_NONE]      = NULL,
 	[THP_STARTED]   = "started",
@@ -936,6 +938,27 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 			return 0;
 		}
 	}
+	return 1;
+}
+
+static int
+handshakeisvalid(struct torrent *to, uint8_t *hs, size_t l)
+{
+	if (l != 68)
+		return 0;
+
+	if (hs[0] != 19)
+		return 0;
+
+	if (memcmp(hs+1, "BitTorrent protocol", 19))
+		return 0;
+
+	if (memcmp(hs+28, to->infohash, 20))
+		return 0;
+
+	if (!memcmp(hs+48, PEERID, 20))
+		return 0;
+
 	return 1;
 }
 
