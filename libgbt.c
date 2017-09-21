@@ -968,6 +968,7 @@ grizzly_load(struct torrent *to, char *path)
 	FILE *f;
 	char *buf;
 	struct stat sb;
+	struct peer *p;
 
 	/* read torrent file into a memory buffer */
 	if (stat(path, &sb)) {
@@ -991,6 +992,11 @@ grizzly_load(struct torrent *to, char *path)
 
 	if (thpsend(to, THP_STARTED) < 0)
 		return 0;
+
+	TAILQ_FOREACH(p, to->peers, entries) {
+		pwpinit(p);
+		p->conn = CONN_INIT;
+	}
 
 	return 1;
 }
