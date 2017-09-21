@@ -113,21 +113,21 @@ curlwrite(char *ptr, size_t size, size_t nmemb, struct buffer *userdata)
 static uint8_t *
 setbit(uint8_t *bits, off_t off)
 {
-	bits[off / sizeof(*bits)] |= (1 << off);
+	bits[off / 8] |= (1 << (7 - off%8));
 	return bits;
 }
 
 static uint8_t *
 clrbit(uint8_t *bits, off_t off)
 {
-	bits[off / sizeof(*bits)] &= ~(1 << off);
+	bits[off / sizeof(*bits)] &= ~(1 << (7 - off%8));
 	return bits;
 }
 
 static int
 bit(uint8_t *bits, off_t off)
 {
-	return !(bits[off / sizeof(*bits)] & (1 << off));
+	return !!(bits[off / 8] & (1 << (7 - off%8)));
 }
 
 static char *
@@ -1076,6 +1076,7 @@ int
 grizzly_finished(struct torrent *to)
 {
 	size_t i;
+
 	for (i = 0; i < to->pcsnum; i++) {
 		if (!bit(to->bitfield, i))
 			return 0;
