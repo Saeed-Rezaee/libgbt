@@ -1,6 +1,6 @@
 include config.mk
 
-all: libgbt.a example
+all: libgbt.a torrent
 libgbt.a: libgbt.a(libgbt.o) libgbt.a(sha1.o) libgbt.a(utf8.o)
 libgbt.o: libgbt.c libgbt.h
 test: libgbt.a
@@ -9,7 +9,7 @@ test: libgbt.a
 config.h: config.def.h
 	cp $< $@
 
-example: example.o libgbt.a
+torrent: torrent.o libgbt.a
 	$(CC) $< -L. -lgbt $(LDLIBS) -o $@
 
 .o.a:
@@ -26,4 +26,4 @@ uninstall:
 	rm $(DESTDIR)$(PREFIX)/include/libgbt.h
 
 clean:
-	rm -f libgbt.a example *.o
+	rm -f libgbt.a torrent *.o
