@@ -29,6 +29,20 @@ enum {
 	THP_COMPLETED
 };
 
+enum {
+	CONN_CLOSED = 0,
+	CONN_INIT,
+	CONN_HANDSHAKE,
+	CONN_ESTAB
+};
+
+enum {
+	PEER_CHOKED       = 1<<0,
+	PEER_INTERESTED   = 1<<1,
+	PEER_AMCHOKED     = 1<<2,
+	PEER_AMINTERESTED = 1<<3
+};
+
 struct be {
         char *start;
         char *end;
@@ -48,9 +62,8 @@ struct piece {
 
 struct peer {
 	int sockfd;
-	int connected;
-	uint8_t choked;
-	uint8_t interrested;
+	uint8_t conn;
+	uint8_t state;
 	uint8_t *bitfield;
 	struct sockaddr_in peer;
 	TAILQ_ENTRY(peer) entries;

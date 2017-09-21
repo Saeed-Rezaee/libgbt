@@ -613,10 +613,10 @@ bstr2peer(struct peers *ph, char *buf, size_t len)
 
 	for (i = 0; i < len/6; i++) {
 		p = emalloc(sizeof(*p));
-		p->sockfd = -1;
-		p->connected = 0;
-		p->choked = 1;
-		p->interrested = 0;
+		p->conn = CONN_CLOSED;
+		p->state = 0;
+		p->state |= PEER_CHOKED;
+		p->state |= PEER_AMCHOKED;
 		p->peer.sin_family = AF_INET;
 		memcpy(&p->peer.sin_port, &buf[i * 6] + 4, 2);
 		memcpy(&p->peer.sin_addr, &buf[i * 6], 4);
@@ -740,9 +740,9 @@ thpsend(struct torrent *to, int ev)
 static int
 pwpinit(struct peer *p)
 {
-	int flags;
+	int flags = 0;
 
-	if (p->connected)
+	if (p->conn != CONN_CLOSED)
 		return 0;
 
 	if ((p->sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
