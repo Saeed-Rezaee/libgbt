@@ -66,9 +66,8 @@ static struct peer * findpeer(struct peers *, struct peer *);
 static int updatepeers(struct torrent *, struct be *);
 static int thpsend(struct torrent *, int);
 
-
 static int pwpinit(struct peer *);
-static int pwprecv(struct peer *, uint8_t *, ssize_t *);
+static ssize_t pwprecv(struct peer *, uint8_t *);
 static size_t pwpfmt(uint8_t *, int, uint8_t *, uint32_t);
 static ssize_t pwpstate(struct peer *, int);
 static ssize_t pwphandshake(struct torrent *, struct peer *);
@@ -758,23 +757,30 @@ pwpinit(struct peer *p)
 	return connect(p->sockfd, (struct sockaddr *)&p->peer, sizeof(p->peer));
 }
 
-static int
-pwprecv(struct peer *p, uint8_t *buf, ssize_t *len)
+static ssize_t
+pwprecv(struct peer *p, uint8_t *buf)
 {
-	ssize_t r;
+	ssize_t l, s, r;
 
+	/* read the first 4 bytes to get message length */
+	if ((r = recv(p->sockfd, buf, 4, MSG_PEEK)) < 1)
+		return -1;
 
-	while ((r = recv(p->sockfd, buf, MESSAGE_MAX, 0)) > 0)
-		*len += r;
+	/* compute expected message length */
+	l = buf[0] == 19 ? 68 : ntohl(buf[0]) + 5;
+	s = 0;
 
-	if (r < 0) perror("recv");
-	if (*len < 1) return -1;
-	if (*len < 2) errx(1, "Message too short\n");
+	while (l > 0 && (r = recv(p->sockfd, buf, l, 0)) > 0) {
+		l -= r;
+		s += r;
+	}
 
-	if (buf[0] > NUM_PWP_TYPES)
-		return PWP_HANDSHAKE;
+	if (r < 0) {
+		perror("recv");
+		return -1;
+	}
 
-	return buf[0];
+	return s;
 }
 
 /*
