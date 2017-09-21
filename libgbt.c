@@ -1004,5 +1004,63 @@ grizzly_load(struct torrent *to, char *path)
 int
 grizzly_download(struct torrent *to)
 {
+	int n, fdmax;
+	fd_set rfds, wfds;
+	ssize_t l;
+	uint8_t msg[MESSAGE_MAX];
+	struct peer *p;
+	struct timeval tv;
+
+	fdmax = -1;
+	FD_ZERO(&rfds);
+	FD_ZERO(&wfds);
+
+	TAILQ_FOREACH(p, to->peers, entries) {
+		if (p->conn >= CONN_HANDSHAKE)
+			FD_SET(p->sockfd, &rfds);
+		FD_SET(p->sockfd, &wfds);
+		if (p->sockfd > fdmax)
+			fdmax = p->sockfd;
+	}
+
+	tv.tv_sec = 1;
+	tv.tv_usec = 0;
+	n = select(fdmax + 1, &rfds, &wfds, NULL, &tv);
+	if (n < 0) {
+		if (errno == EINTR)
+	                return 0;
+		perror("select");
+        }
+
+	TAILQ_FOREACH(p, to->peers, entries) {
+		memset(msg, 0, MESSAGE_MAX);
+		switch (p->conn) {
+		/* ignore dropped peers */
+		case CONN_CLOSED:
+			continue;
+			break; /* NOTREACHED */
+		/* set peer as connected */
+		case CONN_INIT:
+			if (FD_ISSET(p->sockfd, &wfds)) {
+				pwphandshake(to, p);
+				p->conn = CONN_HANDSHAKE;
+			}
+			break;
+		case CONN_HANDSHAKE:
+			if (FD_ISSET(p->sockfd, &rfds)) {
+				p->conn = CONN_ESTAB;
+				l = pwprecv(p, msg);
+				if (l < 0 || !handshakeisvalid(to, msg, l)) {
+					p->conn = CONN_CLOSED;
+					close(p->sockfd);
+					p->sockfd = -1;
+				}
+			}
+			break;
+		case CONN_ESTAB:
+			break;
+		}
+	}
+
 	return 1;
 }
