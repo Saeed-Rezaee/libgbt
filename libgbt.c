@@ -1009,7 +1009,7 @@ grizzly_load(struct torrent *to, char *path)
 }
 
 int
-grizzly_download(struct torrent *to)
+grizzly_leech(struct torrent *to)
 {
 	int n, fdmax;
 	fd_set rfds, wfds;
