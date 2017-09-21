@@ -39,7 +39,7 @@ main(int argc, char *argv[])
 		/* update peers with THP heartbeats */
 		clock_gettime(CLOCK_MONOTONIC, &now);
 		if (now.tv_sec - lastsent.tv_sec > interval)
-			grizzly_thpheartbeat(&to, interval);
+			grizzly_thpheartbeat(&to, &interval);
 
 		/* request and download pieces */
 		grizzly_leech(&to);
