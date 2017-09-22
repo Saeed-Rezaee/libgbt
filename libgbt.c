@@ -607,7 +607,10 @@ piecereqrand(struct torrent *to)
 	uint32_t n;
 
 	srand(time(NULL)); /* good-enough seed */
-	n = rand() % (to->pcsnum + 1);
+
+	do {
+		n = rand() % (to->pcsnum + 1);
+	} while (!bit(to->bitfield, n));
 
 	return to->pieces[n];
 }
