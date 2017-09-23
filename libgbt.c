@@ -987,6 +987,9 @@ static int
 pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 {
 	int n;
+	struct piece pc;
+	uint8_t blk[BLOCK_MAX];
+	uint32_t pn, bo, bl;
 
 	if (l < 4)
 		return 0;
@@ -1004,6 +1007,20 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 		break;
 	case PWP_UNINTERESTED:
 		p->state &= ~PEER_INTERESTED;
+		break;
+	case PWP_REQUEST:
+		pn = U32(msg + 5);
+		bo = U32(msg + 9);
+		bl = U32(msg + 13);
+		printf("< %s: piece 0x%08x (off:%08x len:%lu)\n", inet_ntoa(p->peer.sin_addr), pn, bo, bl);
+		if (readpiece(to, &pc, pn)) {
+			if (bl > BLOCK_MAX)
+				return 0;
+			memcpy(blk, pc.data + bo, bl);
+			if (pwppiece(p, pn, bo, bl, blk)) {
+				to->upload += bl;
+			}
+		}
 		break;
 	default:
 		printf("Message %d not handled\n", n);
