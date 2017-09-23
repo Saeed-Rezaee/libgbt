@@ -59,6 +59,7 @@ static size_t metafiles(struct torrent *);
 static size_t metapieces(struct torrent *);
 static int metainfo(struct torrent *, char *, size_t);
 
+static ssize_t readpiece(struct torrent *, struct piece *, unsigned long);
 static long piecereqrand(struct torrent *);
 
 static size_t bestr2peer(struct peers *, char *, size_t);
@@ -593,6 +594,51 @@ metainfo(struct torrent *to, char *buf, size_t len)
 	metapieces(to);
 
 	return 0;
+}
+
+static ssize_t
+readpiece(struct torrent *to, struct piece *pc, unsigned long n)
+{
+	FILE *f;
+	ssize_t r;
+	size_t off, i, l;
+	unsigned char hash[20];
+
+	off = n * to->piecelen;
+
+	pc->n = n;
+	pc->len = 0;
+	pc->sha1 = to->pieces + 20 * n;
+	memset(pc->data, 0, sizeof(pc->data));
+	memset(pc->blocks, 0, sizeof(pc->blocks));
+
+	/* find file where piece begins */
+	for (i = 0; i < to->filnum && off > to->files[i].len; i++)
+		off -= to->files[i].len;
+
+	/* calculate expected piece len */
+	l = (n == to->pcsnum - 1) ? (to->size % to->piecelen) : to->piecelen;
+	r = 0;
+
+	/* read from file until piece is full */
+	while(pc->len < l) {
+		if (i >= to->filnum)
+			return 0;
+		if (!(f = fopen(to->files[i].path, "r")))
+			return 0;
+		fseek(f, off, SEEK_SET);
+		r = fread(pc->data + r, 1, MIN(l, to->files[i].len - off), f);
+		pc->len += r;
+		fclose(f);
+		l -= r;
+	}
+
+	/* verify checksum */
+	sha1((const unsigned char *)pc->data, pc->len, hash);
+	if (memcmp(pc->sha1, hash, 20))
+		return 0;
+
+	return pc->len;
 }
 
 static long
