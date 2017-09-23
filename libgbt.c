@@ -70,8 +70,8 @@ static int updatepeers(struct torrent *, struct be *);
 static int thpsend(struct torrent *, int);
 
 static int pwpinit(struct peer *);
+static uint32_t pwpfmt(uint8_t *, int, uint8_t *, uint32_t);
 static ssize_t pwprecv(struct peer *, uint8_t *);
-static ssize_t pwpfmt(uint8_t *, int, uint8_t *, uint32_t);
 static ssize_t pwpstate(struct peer *, int);
 static ssize_t pwphandshake(struct torrent *, struct peer *);
 static ssize_t pwphave(struct peer *, uint16_t);
@@ -851,20 +851,20 @@ pwprecv(struct peer *p, uint8_t *buf)
  * -----------------------------------------
  *          4             1          ...
  */
-static ssize_t
+static uint32_t
 pwpfmt(uint8_t *msg, int type, uint8_t *payload, uint32_t len)
 {
 	size_t i;
 	off_t off = 0;
 
 	if (!msg)
-		return -1;
+		return 0;
 
 	memset(msg, 0, len + 5);
-	msg[off++] = ((len + 1) & 0xF000) >> 24;
-	msg[off++] = ((len + 1) & 0x0F00) >> 16;
-	msg[off++] = ((len + 1) & 0x00F0) >> 8;
-	msg[off++] = ((len + 1) & 0x000F) >> 0;
+	msg[off++] = ((len + 1) >> 24) & 0xff;
+	msg[off++] = ((len + 1) >> 16) & 0xff;
+	msg[off++] = ((len + 1) >> 8) & 0xff;
+	msg[off++] = ((len + 1) >> 0) & 0xff;
 	msg[off++] = type;
 
 	for (i = 0; i < len; i++)
