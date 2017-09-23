@@ -1008,6 +1008,11 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 	case PWP_UNINTERESTED:
 		p->state &= ~PEER_INTERESTED;
 		break;
+	case PWP_HAVE:
+		pn = U32(msg + 5);
+		setbit(p->bitfield, pn);
+		printf("%s: HAVE: %lu\n", inet_ntoa(p->peer.sin_addr), pn);
+		break;
 	case PWP_REQUEST:
 		pn = U32(msg + 5);
 		bo = U32(msg + 9);
@@ -1094,6 +1099,7 @@ grizzly_load(struct torrent *to, char *path, long *thpinterval)
 	TAILQ_FOREACH(p, to->peers, entries) {
 		pwpinit(p);
 		p->conn = CONN_INIT;
+		p->bitfield = emalloc(to->pcsnum / 8);
 	}
 
 	return 1;
