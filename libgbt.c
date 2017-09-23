@@ -61,7 +61,7 @@ static int metainfo(struct torrent *, char *, size_t);
 
 static struct piece piecereqrand(struct torrent *to);
 
-static size_t bstr2peer(struct peers *, char *, size_t);
+static size_t bestr2peer(struct peers *, char *, size_t);
 static int httpsend(struct torrent *, char *, struct be *);
 static struct peer * findpeer(struct peers *, struct peer *);
 static int updatepeers(struct torrent *, struct be *);
@@ -616,7 +616,7 @@ piecereqrand(struct torrent *to)
 }
 
 static size_t
-bstr2peer(struct peers *ph, char *buf, size_t len)
+bestr2peer(struct peers *ph, char *buf, size_t len)
 {
 	size_t i;
 	struct peer *p;
@@ -704,7 +704,7 @@ updatepeers(struct torrent *to, struct be *reply)
 	switch (betype(&v)) {
 	case 's':
 		if (bestr(&v, &s, &l))
-			bstr2peer(&ph, s, l);
+			bestr2peer(&ph, s, l);
 		break;
 	default:
 		errx(1, "'%c': Unsupported type for peers", betype(&v));
