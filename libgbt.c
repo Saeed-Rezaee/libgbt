@@ -956,7 +956,6 @@ pwppiece(struct peer *p, uint32_t pn, uint32_t bo, uint32_t bl, uint8_t *b)
 	pl[7] = (bo >> 0) & 0xff;
 	memcpy(pl+8, b, MIN(MESSAGE_MAX - 8, bl));
 	l = pwpfmt(sp, PWP_PIECE, pl, bl + 8);
-	printf("> %s: piece 0x%08x (off:%08x len:%lu)\n", inet_ntoa(p->peer.sin_addr), U32(pl), U32(pl+4), bl);
 
 	return send(p->sockfd, msg, l, MSG_NOSIGNAL);
 }
@@ -1011,13 +1010,11 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 	case PWP_HAVE:
 		pn = U32(msg + 5);
 		setbit(p->bitfield, pn);
-		printf("%s: HAVE: %lu\n", inet_ntoa(p->peer.sin_addr), pn);
 		break;
 	case PWP_REQUEST:
 		pn = U32(msg + 5);
 		bo = U32(msg + 9);
 		bl = U32(msg + 13);
-		printf("< %s: piece 0x%08x (off:%08x len:%lu)\n", inet_ntoa(p->peer.sin_addr), pn, bo, bl);
 		if (readpiece(to, &pc, pn)) {
 			if (bl > BLOCK_MAX)
 				return 0;
@@ -1028,7 +1025,7 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 		}
 		break;
 	default:
-		printf("Message %d not handled\n", n);
+		fprintf(stderr, "Message %d not handled\n", n);
 		return 0;
 	}
 	return 1;
