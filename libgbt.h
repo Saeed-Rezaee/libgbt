@@ -55,9 +55,11 @@ struct file {
 };
 
 struct piece {
-	uint8_t *sha1;
-	uint8_t *data;
+	size_t n;
 	size_t len;
+	char *sha1;
+	uint8_t data[PIECE_MAX];
+	uint8_t blocks[(PIECE_MAX/(8*BLOCK_MAX))];
 };
 
 struct peer {
@@ -76,7 +78,7 @@ struct torrent {
 	uint8_t peerid[21];
 	uint8_t infohash[20];
 	uint8_t *bitfield;
-	struct piece *pieces;
+	char *pieces;
 	size_t size;
 	size_t filnum;
 	size_t pcsnum;

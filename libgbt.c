@@ -558,27 +558,21 @@ metafiles(struct torrent *to)
 static size_t
 metapieces(struct torrent *to)
 {
-	size_t i;
-	uint8_t *sha1 = NULL;
 	struct be info, v;
 
 	if (!bekv(&to->meta, "info", 4, &info))
 		return 0;
 	if (!bekv(&info, "piece length", 12, &v))
 		return 0;
-
 	if (!beint(&v, (long *)&to->piecelen))
+		return 0;
+	if (!bekv(&info, "pieces", 6, &v))
+		return 0;
+	if (!bestr(&v, &to->pieces, NULL))
 		return 0;
 
 	to->pcsnum = to->size/to->piecelen + !!(to->size%to->piecelen);
-	to->bitfield = emalloc(to->pcsnum / sizeof(*to->bitfield));
-	to->pieces = emalloc(to->pcsnum * sizeof(*to->pieces));
-
-	for (i = 0; i < to->pcsnum; i++) {
-		to->pieces[i].len = i == to->pcsnum ? to->size - i*to->piecelen : to->piecelen;
-		to->pieces[i].data = emalloc(to->pieces[i].len);
-		to->pieces[i].sha1 = sha1 + (i*20);
-	}
+	to->bitfield = emalloc(to->pcsnum / 8);
 
 	return to->pcsnum;
 }
