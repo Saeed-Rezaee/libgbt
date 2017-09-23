@@ -76,7 +76,7 @@ static ssize_t pwpstate(struct peer *, int);
 static ssize_t pwphandshake(struct torrent *, struct peer *);
 static ssize_t pwphave(struct peer *, uint16_t);
 static ssize_t pwpbitfield(struct peer *, uint8_t *, size_t);
-static ssize_t pwprequest(struct peer *, off_t, off_t, size_t);
+static ssize_t pwprequest(struct peer *, uint32_t, uint32_t, uint32_t);
 static ssize_t pwppiece(struct peer *, uint32_t, uint32_t, uint32_t, uint8_t *);
 static ssize_t pwpcancel(struct peer *, off_t, off_t, size_t);
 static ssize_t pwpheartbeat(struct peer *);
@@ -924,15 +924,26 @@ pwpbitfield(struct peer *p, uint8_t *bf, size_t n)
 }
 
 static ssize_t
-pwprequest(struct peer *p, off_t op, off_t ob, size_t sb)
+pwprequest(struct peer *p, uint32_t pn, uint32_t bo, uint32_t bl)
 {
 	size_t l;
 	uint8_t msg[MESSAGE_MAX], pl[12];
 	uint8_t *sp = msg;
 
-	pl[0] = htonl(op);
-	pl[4] = htonl(ob);
-	pl[8] = htonl(sb);
+	pl[0] = (pn >> 24) & 0xff;
+	pl[1] = (pn >> 16) & 0xff;
+	pl[2] = (pn >> 8) & 0xff;
+	pl[3] = (pn >> 0) & 0xff;
+
+	pl[4] = (bo >> 24) & 0xff;
+	pl[5] = (bo >> 16) & 0xff;
+	pl[6] = (bo >> 8) & 0xff;
+	pl[7] = (bo >> 0) & 0xff;
+
+	pl[8]  = (bl >> 24) & 0xff;
+	pl[9]  = (bl >> 16) & 0xff;
+	pl[10] = (bl >> 8) & 0xff;
+	pl[11] = (bl >> 0) & 0xff;
 	l = pwpfmt(sp, PWP_REQUEST, pl, 12);
 
 	return send(p->sockfd, msg, l, MSG_NOSIGNAL);
