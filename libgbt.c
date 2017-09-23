@@ -874,7 +874,7 @@ pwpbitfield(struct peer *p, uint8_t *bf, size_t n)
 	uint8_t msg[MESSAGE_MAX];
 	uint8_t *sp = msg;
 
-	l = pwpfmt(sp, PWP_BITFIELD, bf, n / sizeof(*bf));
+	l = pwpfmt(sp, PWP_BITFIELD, bf, n/8 + !!(n%8));
 
 	return send(p->sockfd, msg, l, MSG_NOSIGNAL);
 }
