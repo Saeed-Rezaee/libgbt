@@ -769,14 +769,20 @@ pwpinit(struct peer *p)
 static ssize_t
 pwprecv(struct peer *p, uint8_t *buf)
 {
+	size_t len = 0;
 	ssize_t l, s, r;
 
 	/* read the first 4 bytes to get message length */
 	if ((r = recv(p->sockfd, buf, 4, MSG_PEEK)) < 1)
 		return -1;
 
+	len |= buf[0] << 24;
+	len |= buf[1] << 16;
+	len |= buf[2] << 8;
+	len |= buf[3];
+
 	/* compute expected message length */
-	l = buf[0] == 19 ? 68 : ntohl(buf[0]) + 5;
+	l = buf[0] == 19 ? 68 : len + 4;
 	s = 0;
 
 	while (l > 0 && (r = recv(p->sockfd, buf, l, 0)) > 0) {
@@ -807,10 +813,12 @@ pwpfmt(uint8_t *msg, int type, uint8_t *payload, uint32_t len)
 	if (!msg)
 		return -1;
 
-	msg[off] = htonl(len + 1);
-	off += 4;
-	msg[off] = type;
-	off += 1;
+	memset(msg, 0, len + 5);
+	msg[off++] = ((len + 1) & 0xF000) >> 24;
+	msg[off++] = ((len + 1) & 0x0F00) >> 16;
+	msg[off++] = ((len + 1) & 0x00F0) >> 8;
+	msg[off++] = ((len + 1) & 0x000F) >> 0;
+	msg[off++] = type;
 
 	for (i = 0; i < len; i++)
 		msg[off++] = payload[i];
