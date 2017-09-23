@@ -989,6 +989,7 @@ grizzly_load(struct torrent *to, char *path, long *thpinterval)
 	char *buf;
 	struct stat sb;
 	struct peer *p;
+	struct piece pc;
 
 	/* read torrent file into a memory buffer */
 	if (stat(path, &sb)) {
@@ -1008,6 +1009,11 @@ grizzly_load(struct torrent *to, char *path, long *thpinterval)
 		fprintf(stderr, "%s: Failed to load torrent\n", path);
 		free(buf);
 		return 0;
+	}
+
+	for (i = 0; (size_t)i < to->pcsnum; i++) {
+		if (readpiece(to, &pc, i) > 0)
+			setbit(to->bitfield, i);
 	}
 
 	if ((i = thpsend(to, THP_STARTED)) < 0)
