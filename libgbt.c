@@ -23,6 +23,7 @@
 
 #define MIN(a,b) ((a)<(b)?(a):(b))
 #define MAX(a,b) ((a)>(b)?(a):(b))
+#define U32(s) ((uint32_t)((s)[0])<<24|((s)[1])<<16|((s)[2])<<8|((s)[3]))
 
 struct buffer {
 	char  *buf;
