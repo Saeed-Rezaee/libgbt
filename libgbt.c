@@ -1143,10 +1143,21 @@ grizzly_leech(struct torrent *to)
 					p->conn = CONN_CLOSED;
 					close(p->sockfd);
 					p->sockfd = -1;
+					continue;
 				}
 			}
 			break;
 		case CONN_ESTAB:
+			if (FD_ISSET(p->sockfd, &rfds)) {
+				l = pwprecv(p, msg);
+				pwprecvhandler(to, p, msg, l);
+			}
+			if (FD_ISSET(p->sockfd, &wfds)) {
+				if (p->state & PEER_INTERESTED && p->state & PEER_CHOKED) {
+					pwpstate(p, PWP_UNCHOKE);
+					p->state &= ~(PEER_CHOKED);
+				}
+			}
 			break;
 		}
 	}
