@@ -1011,6 +1011,9 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 		pn = U32(msg + 5);
 		setbit(p->bitfield, pn);
 		break;
+	case PWP_BITFIELD:
+		memcpy(p->bitfield, msg + 5, l - 5);
+		break;
 	case PWP_REQUEST:
 		pn = U32(msg + 5);
 		bo = U32(msg + 9);
