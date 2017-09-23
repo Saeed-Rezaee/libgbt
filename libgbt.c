@@ -59,7 +59,7 @@ static size_t metafiles(struct torrent *);
 static size_t metapieces(struct torrent *);
 static int metainfo(struct torrent *, char *, size_t);
 
-static struct piece piecereqrand(struct torrent *to);
+static long piecereqrand(struct torrent *);
 
 static size_t bestr2peer(struct peers *, char *, size_t);
 static int httpsend(struct torrent *, char *, struct be *);
@@ -601,10 +601,10 @@ metainfo(struct torrent *to, char *buf, size_t len)
 	return 0;
 }
 
-static struct piece
+static long
 piecereqrand(struct torrent *to)
 {
-	uint32_t n;
+	long n;
 
 	srand(time(NULL)); /* good-enough seed */
 
