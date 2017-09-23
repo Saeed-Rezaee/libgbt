@@ -936,25 +936,26 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 {
 	int n;
 
-	n = msg[0] > NUM_PWP_TYPES ? PWP_HANDSHAKE : msg[0];
-	if (n >= 0 && l > 0 && n < NUM_PWP_TYPES) {
-		switch (n) {
-		case PWP_CHOKE:
-			p->state |= PEER_CHOKED;
-			break;
-		case PWP_UNCHOKE:
-			p->state &= ~PEER_CHOKED;
-			break;
-		case PWP_INTERESTED:
-			p->state |= PEER_INTERESTED;
-			break;
-		case PWP_UNINTERESTED:
-			p->state &= ~PEER_INTERESTED;
-			break;
-		default:
-			printf("Message %d unknown\n", n);
-			return 0;
-		}
+	if (l < 4)
+		return 0;
+
+	n = msg[4];
+	switch (n) {
+	case PWP_CHOKE:
+		p->state |= PEER_AMCHOKED;
+		break;
+	case PWP_UNCHOKE:
+		p->state &= ~PEER_AMCHOKED;
+		break;
+	case PWP_INTERESTED:
+		p->state |= PEER_INTERESTED;
+		break;
+	case PWP_UNINTERESTED:
+		p->state &= ~PEER_INTERESTED;
+		break;
+	default:
+		printf("Message %d not handled\n", n);
+		return 0;
 	}
 	return 1;
 }
