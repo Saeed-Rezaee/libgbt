@@ -847,6 +847,7 @@ pwphandshake(struct torrent *to, struct peer *p)
 
 	msg[0] = 19;
 	memcpy(msg + 1, "BitTorrent protocol", 19);
+	memset(msg + 20, 0, 8);
 	memcpy(msg + 28, to->infohash, 20);
 	memcpy(msg + 48, PEERID, 20);
 
