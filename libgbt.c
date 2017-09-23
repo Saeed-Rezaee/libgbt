@@ -823,10 +823,7 @@ pwprecv(struct peer *p, uint8_t *buf)
 	if ((r = recv(p->sockfd, buf, 4, MSG_PEEK)) < 1)
 		return -1;
 
-	len |= buf[0] << 24;
-	len |= buf[1] << 16;
-	len |= buf[2] << 8;
-	len |= buf[3];
+	len = U32(buf);
 
 	/* compute expected message length */
 	l = buf[0] == 19 ? 68 : len + 4;
