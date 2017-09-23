@@ -1131,6 +1131,7 @@ grizzly_leech(struct torrent *to)
 		case CONN_INIT:
 			if (FD_ISSET(p->sockfd, &wfds)) {
 				pwphandshake(to, p);
+				pwpbitfield(p, to->bitfield, to->pcsnum);
 				p->conn = CONN_HANDSHAKE;
 			}
 			break;
