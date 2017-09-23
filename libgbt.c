@@ -711,11 +711,13 @@ updatepeers(struct torrent *to, struct be *reply)
 			p = TAILQ_PREV(p, peers, entries);
 			TAILQ_REMOVE(&ph, p, entries);
 		}
-	} while((p = TAILQ_NEXT(p, entries)));
-	TAILQ_CONCAT(to->peers, &ph, entries);
-	TAILQ_FOREACH(p, to->peers, entries) {
+	} while(p && (p = TAILQ_NEXT(p, entries)));
+
+	if (!TAILQ_EMPTY(&ph))
+		TAILQ_CONCAT(to->peers, &ph, entries);
+
+	TAILQ_FOREACH(p, to->peers, entries)
 		n++;
-	}
 
 	return n;
 }
