@@ -61,7 +61,11 @@ static size_t metapieces(struct torrent *);
 static int metainfo(struct torrent *, char *, size_t);
 
 static ssize_t readpiece(struct torrent *, struct piece *, unsigned long);
+static uint32_t piecelen(struct torrent *, uint32_t);
+static uint32_t blocklen(struct torrent *, struct piece, uint32_t);
 static long piecereqrand(struct torrent *);
+
+static long requestblock(struct torrent *, struct peer *);
 
 static size_t bestr2peer(struct peers *, char *, size_t);
 static int httpsend(struct torrent *, char *, struct be *);
@@ -642,6 +646,27 @@ readpiece(struct torrent *to, struct piece *pc, unsigned long n)
 	return pc->len;
 }
 
+static uint32_t
+piecelen(struct torrent *to, uint32_t n)
+{
+	if (n >= to->pcsnum)
+		return 0;
+
+	return (n == to->pcsnum - 1) ? to->size % to->piecelen : to->piecelen;
+}
+
+static uint32_t
+blocklen(struct torrent *to, struct piece pc, uint32_t o)
+{
+	if (pc.n >= to->pcsnum)
+		return 0;
+
+	if (o >= pc.len)
+		return 0;
+
+	return (pc.len - o) < BLOCK_MAX ? pc.len - o : BLOCK_MAX;
+}
+
 static long
 piecereqrand(struct torrent *to)
 {
@@ -654,6 +679,44 @@ piecereqrand(struct torrent *to)
 	} while (!bit(to->bitfield, n));
 
 	return to->pieces[n];
+}
+
+static long
+requestblock(struct torrent *to, struct peer *p)
+{
+	size_t i;
+	uint32_t bo, bl;
+	
+	/* reset piece request when we have the piece */
+	if (bit(to->bitfield, p->req.n))
+		p->lastreq = -1;
+
+	/* not requesting anything from peer yet */
+	for (i = 0; p->lastreq < 0 && i < (to->pcsnum/8); i++) {
+		/* find a piece in peer bitfield we don't have yet */
+		if (bit(p->bitfield, i) && !bit(to->bitfield, i)) {
+			p->req.n = i;
+			p->req.len = piecelen(to, i);
+			p->req.sha1 = to->pieces + i * to->piecelen;
+			memset(p->req.data, 0, p->req.len);
+			break;
+		}
+	}
+
+	/* this peer is of no help for us */
+	if (i >= (to->pcsnum/8))
+		return -1;
+
+	bo = p->lastreq < 0 ? 0 : p->lastreq + BLOCK_MAX;
+	bl = blocklen(to, p->req, bo);
+
+	if (!bl)
+		return -1;
+
+	if (pwprequest(p, p->req.n, bo, bl) >= 0)
+		p->lastreq = bo;
+
+	return bo;
 }
 
 static size_t
@@ -1111,6 +1174,7 @@ grizzly_load(struct torrent *to, char *path, long *thpinterval)
 		pwpinit(p);
 		p->conn = CONN_INIT;
 		p->bitfield = emalloc(to->pcsnum / 8);
+		p->lastreq = -1;
 	}
 
 	return 1;
@@ -1197,6 +1261,12 @@ grizzly_leech(struct torrent *to)
 					pwpstate(p, PWP_UNCHOKE);
 					p->state &= ~(PEER_CHOKED);
 				}
+				if (!(p->state & PEER_AMINTERESTED)) {
+					pwpstate(p, PWP_INTERESTED);
+					p->state |= PEER_AMINTERESTED;
+				}
+				if (!(p->state & PEER_AMCHOKED) && (p->state & PEER_AMINTERESTED))
+					requestblock(to, p);
 			}
 			break;
 		}

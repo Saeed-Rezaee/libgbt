@@ -68,6 +68,8 @@ struct peer {
 	uint8_t state;
 	uint8_t *bitfield;
 	struct sockaddr_in peer;
+	struct piece req;
+	long lastreq;
 	TAILQ_ENTRY(peer) entries;
 };
 TAILQ_HEAD(peers, peer);
