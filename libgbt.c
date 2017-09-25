@@ -140,7 +140,7 @@ static char *
 tohex(uint8_t *in, char *out, size_t len)
 {
 	size_t i, j;
-	char hex[] = "0123456789ABCDEF";
+	char hex[] = "0123456789abcdef";
 
 	memset(out, 0, len*2 + 1);
 	for (i=0, j=0; i<len; i++, j++) {
