@@ -60,6 +60,7 @@ static size_t metafiles(struct torrent *);
 static size_t metapieces(struct torrent *);
 static int metainfo(struct torrent *, char *, size_t);
 
+static int checkpiece(struct piece *);
 static ssize_t readpiece(struct torrent *, struct piece *, unsigned long);
 static uint32_t piecelen(struct torrent *, uint32_t);
 static uint32_t blocklen(struct torrent *, struct piece, uint32_t);
@@ -688,12 +689,7 @@ readpiece(struct torrent *to, struct piece *pc, unsigned long n)
 		l -= r;
 	}
 
-	/* verify checksum */
-	sha1((const unsigned char *)pc->data, pc->len, hash);
-	if (memcmp(pc->sha1, hash, 20))
-		return 0;
-
-	return pc->len;
+	return checkpiece(pc) ? pc->len : 0;
 }
 
 static uint32_t
