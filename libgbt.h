@@ -6,7 +6,7 @@
 #define PEERID "-GT0000-000000000000"
 #define PIECE_MAX 1048576
 #define BLOCK_MAX 16384
-#define MESSAGE_MAX ((BLOCK_MAX) + 9)
+#define MESSAGE_MAX ((BLOCK_MAX) + 13)
 
 enum {
 	PWP_CHOKE = 0,
@@ -59,7 +59,7 @@ struct piece {
 	size_t len;
 	char *sha1;
 	uint8_t data[PIECE_MAX];
-	uint8_t blocks[(PIECE_MAX/(8*BLOCK_MAX))];
+	uint8_t blocks[PIECE_MAX/(8*BLOCK_MAX)];
 };
 
 struct peer {

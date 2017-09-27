@@ -579,7 +579,7 @@ metapieces(struct torrent *to)
 		return 0;
 
 	to->pcsnum = to->size/to->piecelen + !!(to->size%to->piecelen);
-	to->bitfield = emalloc(to->pcsnum / 8);
+	to->bitfield = emalloc(to->pcsnum / 8 + !!(to->pcsnum % 8));
 
 	return to->pcsnum;
 }
@@ -602,13 +602,62 @@ metainfo(struct torrent *to, char *buf, size_t len)
 	return 0;
 }
 
+static int
+checkpiece(struct piece *pc)
+{
+	unsigned char hash[20];
+
+	sha1((const unsigned char *)pc->data, pc->len, hash);
+	return !memcmp(pc->sha1, hash, 20);
+}
+
+static ssize_t
+writepiece(struct torrent *to, struct piece *pc)
+{
+	int fd;
+	char *addr;
+	size_t off, i;
+	ssize_t l;
+
+	off = pc->n * to->piecelen;
+
+	/* find file where piece begins */
+	for (i = 0; off > to->files[i].len && i < to->filnum; i++)
+		off -= to->files[i].len;
+
+	/* read from file until piece is full */
+	l = pc->len;
+	while(l > 0 && i < to->filnum) {
+	        if ((fd = open(to->files[i].path, O_RDWR|O_CREAT, 0644)) < 0) {
+	                perror(to->files[i].path);
+	                return -1;
+	        }
+		ftruncate(fd, to->files[i].len);
+
+                addr = mmap(0, to->files[i].len, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+                if (addr == MAP_FAILED) {
+                        perror("mmap");
+                        close(fd);
+		}
+
+		memcpy(addr + off, pc->data, MIN((size_t)l, to->files[i].len - off));
+		munmap(addr, to->files[i].len);
+		close(fd);
+		printf(":: piece %ld written to %s\n", pc->n, to->files[i].path);
+		l -= MIN((size_t)l, to->files[i].len - off);
+		i++;
+	}
+
+	setbit(to->bitfield, pc->n);
+	return pc->len;
+}
+
 static ssize_t
 readpiece(struct torrent *to, struct piece *pc, unsigned long n)
 {
 	FILE *f;
 	ssize_t r;
 	size_t off, i, l;
-	unsigned char hash[20];
 
 	off = n * to->piecelen;
 
@@ -616,7 +665,7 @@ readpiece(struct torrent *to, struct piece *pc, unsigned long n)
 	pc->len = 0;
 	pc->sha1 = to->pieces + 20 * n;
 	memset(pc->data, 0, sizeof(pc->data));
-	memset(pc->blocks, 0, sizeof(pc->blocks));
+	memset(pc->blocks, 0, PIECE_MAX/(8*BLOCK_MAX));
 
 	/* find file where piece begins */
 	for (i = 0; i < to->filnum && off > to->files[i].len; i++)
@@ -687,39 +736,41 @@ requestblock(struct torrent *to, struct peer *p)
 {
 	size_t i;
 	uint32_t bo, bl;
-	
+
 	/* reset piece request when we have the piece */
-	if (bit(to->bitfield, p->req.n))
+	if (bit(to->bitfield, p->req.n)) {
 		p->lastreq = -1;
+		memset(p->req.data, 0, to->piecelen);
+		memset(p->req.blocks, 0, to->piecelen/(8*BLOCK_MAX));
+	}
 
 	/* not requesting anything from peer yet */
-	for (i = 0; p->lastreq < 0 && i < (to->pcsnum/8); i++) {
+	for (i = 0; p->lastreq < 0 && i < to->pcsnum; i++) {
 		/* find a piece in peer bitfield we don't have yet */
 		if (bit(p->bitfield, i) && !bit(to->bitfield, i)) {
 			p->req.n = i;
 			p->req.len = piecelen(to, i);
-			p->req.sha1 = to->pieces + i * to->piecelen;
-			memset(p->req.data, 0, p->req.len);
+			p->req.sha1 = to->pieces + i * 20;
 			break;
 		}
 	}
 
 	/* this peer is of no help for us */
-	if (i >= (to->pcsnum/8))
-		return -1;
+	if (i >= (to->pcsnum))
+		return 0;
 
 	bo = p->lastreq < 0 ? 0 : p->lastreq + BLOCK_MAX;
 	bl = blocklen(to, p->req, bo);
 
-	if (!bl)
+	if (!bl || bo >= p->req.len || bit(p->req.blocks, bo/BLOCK_MAX))
 		return -1;
 
-	if (pwprequest(p, p->req.n, bo, bl) >= 0)
-		p->lastreq = bo;
+	if (pwprequest(p, p->req.n, bo, bl) < 0)
+		return 0;
 
-	fprintf(stderr, "> request %lu (off:%d len:%d)\n", p->req.n, bo, bl);
-
-	return bo;
+	fprintf(stderr, "> request %lu (off:%d len:%d plen:%ld)\n", p->req.n, bo, bl, p->req.len);
+	p->lastreq = bo;
+	return 1;
 }
 
 static size_t
@@ -774,6 +825,8 @@ httpsend(struct torrent *to, char *ev, struct be *reply)
 	r = curl_easy_perform(c);
 	if (r != CURLE_OK)
 		errx(1, "%s", curl_easy_strerror(r));
+
+	curl_easy_cleanup(c);
 
 	return beinit(reply, b.buf, b.siz);
 }
@@ -886,7 +939,7 @@ pwprecv(struct peer *p, uint8_t *buf)
 	ssize_t l, s, r;
 
 	/* read the first 4 bytes to get message length */
-	if ((r = recv(p->sockfd, buf, 4, MSG_PEEK)) < 1)
+	if ((r = recv(p->sockfd, buf, 4, MSG_PEEK)) < 0)
 		return -1;
 
 	len = U32(buf);
@@ -895,13 +948,15 @@ pwprecv(struct peer *p, uint8_t *buf)
 	l = buf[0] == 19 ? 68 : len + 4;
 	s = 0;
 
-	while (l > 0 && (r = recv(p->sockfd, buf, l, 0)) > 0) {
+	if (l > MESSAGE_MAX)
+		return -1;
+
+	while (l > 0 && s < MESSAGE_MAX && (r = recv(p->sockfd, buf + s, l, 0)) > 0) {
 		l -= r;
 		s += r;
 	}
 
 	if (r < 0) {
-		perror("recv");
 		return -1;
 	}
 
@@ -1185,8 +1240,9 @@ grizzly_load(struct torrent *to, char *path, long *thpinterval)
 	TAILQ_FOREACH(p, to->peers, entries) {
 		pwpinit(p);
 		p->conn = CONN_INIT;
-		p->bitfield = emalloc(to->pcsnum / 8);
+		p->bitfield = emalloc(to->pcsnum / 8 + !!(to->pcsnum % 8));
 		p->lastreq = -1;
+		p->req.n = 0;
 	}
 
 	return 1;
