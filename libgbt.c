@@ -168,7 +168,8 @@ urlencode(uint8_t *in, size_t len)
 	size_t i, j;
 	char *out;
 
-	out = emalloc(len * 3);
+	out = emalloc(len * 3 + 1);
+	memset(out, 0, len * 3 + 1);
 
 	for (i = 0, j = 0; i < len; i++) {
 		if ((in[i] <= '0' && in[i] >= '9') ||
