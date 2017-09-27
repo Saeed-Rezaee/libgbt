@@ -10,6 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 
@@ -61,6 +62,7 @@ static size_t metapieces(struct torrent *);
 static int metainfo(struct torrent *, char *, size_t);
 
 static int checkpiece(struct piece *);
+static ssize_t writepiece(struct torrent *, struct piece *);
 static ssize_t readpiece(struct torrent *, struct piece *, unsigned long);
 static uint32_t piecelen(struct torrent *, uint32_t);
 static uint32_t blocklen(struct torrent *, struct piece, uint32_t);
@@ -1169,8 +1171,23 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 			}
 		}
 		break;
+	case PWP_PIECE:
+		pn = U32(msg + 5);
+		bo = U32(msg + 9);
+		bl = U32(msg) - 9;
+		memcpy(p->req.data + bo, msg + 13, bl);
+		setbit(p->req.blocks, bo/BLOCK_MAX);
+		fprintf(stderr, "< piece %d 0x%s\n", pn, tohex(p->req.blocks, hex, p->req.len/(8*BLOCK_MAX)));
+		if (checkpiece(&p->req)) {
+			writepiece(to, &p->req);
+			pwphave(p, pn);
+			memset(&p->req, 0, sizeof(p->req));
+			p->req.sha1 = NULL;
+		}
+		break;
 	default:
-		fprintf(stderr, "Message %d not handled\n", n);
+		if (n < NUM_PWP_TYPES)
+			fprintf(stderr, "Message %d not handled\n", n);
 		return 0;
 	}
 	return 1;
