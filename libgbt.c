@@ -78,7 +78,7 @@ static int thpsend(struct torrent *, int);
 
 static int pwpinit(struct peer *);
 static uint32_t pwpfmt(uint8_t *, int, uint8_t *, uint32_t);
-static ssize_t pwprecv(struct peer *, uint8_t *);
+static ssize_t pwprecv(struct peer *);
 static ssize_t pwpstate(struct peer *, int);
 static ssize_t pwphandshake(struct torrent *, struct peer *);
 static ssize_t pwphave(struct peer *, uint16_t);
@@ -646,7 +646,6 @@ writepiece(struct torrent *to, struct piece *pc)
 		memcpy(addr + off, pc->data, MIN((size_t)l, to->files[i].len - off));
 		munmap(addr, to->files[i].len);
 		close(fd);
-		printf(":: piece %ld written to %s\n", pc->n, to->files[i].path);
 		l -= MIN((size_t)l, to->files[i].len - off);
 		i++;
 	}
@@ -931,32 +930,37 @@ pwpinit(struct peer *p)
 }
 
 static ssize_t
-pwprecv(struct peer *p, uint8_t *buf)
+pwprecv(struct peer *p)
 {
-	size_t len = 0;
-	ssize_t l, s, r;
+	ssize_t len, l, s, r;
 
-	/* read the first 4 bytes to get message length */
-	if ((r = recv(p->sockfd, buf, 4, MSG_PEEK)) < 0)
-		return -1;
+	if (!p->msglen) {
+		/* read the first 4 bytes to get message length */
+		if ((r = recv(p->sockfd, p->msg, 4, MSG_PEEK)) < 0)
+			return -1;
+	}
 
-	len = U32(buf);
+	len = U32(p->msg);
 
 	/* compute expected message length */
-	l = buf[0] == 19 ? 68 : len + 4;
-	s = 0;
+	l = (p->msg[0] == 19 ? 68 : len + 4) - p->msglen;
+	s = p->msglen;
 
 	if (l > MESSAGE_MAX)
 		return -1;
 
-	while (l > 0 && s < MESSAGE_MAX && (r = recv(p->sockfd, buf + s, l, 0)) > 0) {
+	while (l > 0 && (r = recv(p->sockfd, p->msg + s, l, 0)) > 0) {
 		l -= r;
 		s += r;
 	}
 
-	if (r < 0) {
+	p->msglen = s;
+
+	if (!l)
+		p->msglen = 0;
+
+	if (r < 0)
 		return -1;
-	}
 
 	return s;
 }
@@ -1177,7 +1181,7 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 		bl = U32(msg) - 9;
 		memcpy(p->req.data + bo, msg + 13, bl);
 		setbit(p->req.blocks, bo/BLOCK_MAX);
-		fprintf(stderr, "< piece %d 0x%s\n", pn, tohex(p->req.blocks, hex, p->req.len/(8*BLOCK_MAX)));
+		fprintf(stderr, "< piece %d (off:%d len:%d)\n", pn, bo, bl);
 		if (checkpiece(&p->req)) {
 			writepiece(to, &p->req);
 			pwphave(p, pn);
@@ -1260,6 +1264,7 @@ grizzly_load(struct torrent *to, char *path, long *thpinterval)
 		p->conn = CONN_INIT;
 		p->bitfield = emalloc(to->pcsnum / 8 + !!(to->pcsnum % 8));
 		p->lastreq = -1;
+		p->msglen = 0;
 		p->req.n = 0;
 	}
 
@@ -1329,8 +1334,8 @@ grizzly_leech(struct torrent *to)
 		case CONN_HANDSHAKE:
 			if (FD_ISSET(p->sockfd, &rfds)) {
 				p->conn = CONN_ESTAB;
-				l = pwprecv(p, msg);
-				if (l < 0 || !handshakeisvalid(to, msg, l)) {
+				l = pwprecv(p);
+				if (l < 0 || !handshakeisvalid(to, p->msg, l)) {
 					p->conn = CONN_CLOSED;
 					close(p->sockfd);
 					p->sockfd = -1;
@@ -1343,15 +1348,9 @@ grizzly_leech(struct torrent *to)
 			break;
 		case CONN_ESTAB:
 			if (FD_ISSET(p->sockfd, &rfds)) {
-				l = pwprecv(p, msg);
-				if (l < 0) {
-					fprintf(stderr, "%s: closing connection\n", inet_ntoa(p->peer.sin_addr));
-					p->conn = CONN_CLOSED;
-					close(p->sockfd);
-					p->sockfd = -1;
-					continue;
-				}
-				pwprecvhandler(to, p, msg, l);
+				l = pwprecv(p);
+				if (l > 0)
+					pwprecvhandler(to, p, p->msg, l);
 			}
 			if (FD_ISSET(p->sockfd, &wfds)) {
 				if (p->state & PEER_INTERESTED && p->state & PEER_CHOKED) {

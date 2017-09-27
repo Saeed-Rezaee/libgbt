@@ -66,9 +66,11 @@ struct peer {
 	int sockfd;
 	uint8_t conn;
 	uint8_t state;
+	uint8_t msg[MESSAGE_MAX];
 	uint8_t *bitfield;
 	struct sockaddr_in peer;
 	struct piece req;
+	long msglen;
 	long lastreq;
 	TAILQ_ENTRY(peer) entries;
 };
