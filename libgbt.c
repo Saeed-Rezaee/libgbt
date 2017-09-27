@@ -1271,6 +1271,7 @@ grizzly_leech(struct torrent *to)
 {
 	int n, fdmax;
 	fd_set rfds, wfds;
+	char hex[41];
 	ssize_t l;
 	uint8_t msg[MESSAGE_MAX];
 	struct peer *p;
@@ -1308,7 +1309,6 @@ grizzly_leech(struct torrent *to)
 		case CONN_INIT:
 			if (FD_ISSET(p->sockfd, &wfds)) {
 				pwphandshake(to, p);
-				pwpbitfield(p, to->bitfield, to->pcsnum);
 				p->conn = CONN_HANDSHAKE;
 				fprintf(stderr, "> handshake\n");
 			}
@@ -1324,11 +1324,20 @@ grizzly_leech(struct torrent *to)
 					continue;
 				}
 				fprintf(stderr, "< handshake\n");
+				pwpbitfield(p, to->bitfield, to->pcsnum);
+				fprintf(stderr, "> bitfield 0x%s\n", tohex(to->bitfield, hex, to->pcsnum/8 + !!(to->pcsnum%8)));
 			}
 			break;
 		case CONN_ESTAB:
 			if (FD_ISSET(p->sockfd, &rfds)) {
 				l = pwprecv(p, msg);
+				if (l < 0) {
+					fprintf(stderr, "%s: closing connection\n", inet_ntoa(p->peer.sin_addr));
+					p->conn = CONN_CLOSED;
+					close(p->sockfd);
+					p->sockfd = -1;
+					continue;
+				}
 				pwprecvhandler(to, p, msg, l);
 			}
 			if (FD_ISSET(p->sockfd, &wfds)) {
