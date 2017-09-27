@@ -1020,14 +1020,19 @@ pwphandshake(struct torrent *to, struct peer *p)
 }
 
 static ssize_t
-pwphave(struct peer *p, uint16_t off)
+pwphave(struct peer *p, uint16_t pn)
 {
 	size_t l;
 	uint8_t msg[MESSAGE_MAX], pl[4];
 	uint8_t *sp = msg;
 
-	pl[0] = htonl(off);
-	l = pwpfmt(sp, PWP_HAVE, pl, 2);
+	pl[0] = (pn >> 24) & 0xff;
+	pl[1] = (pn >> 16) & 0xff;
+	pl[2] = (pn >> 8) & 0xff;
+	pl[3] = (pn >> 0) & 0xff;
+	l = pwpfmt(sp, PWP_HAVE, pl, 4);
+
+	fprintf(stderr, "> have %d\n", pn);
 
 	return send(p->sockfd, msg, l, MSG_NOSIGNAL);
 }
