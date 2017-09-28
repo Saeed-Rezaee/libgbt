@@ -652,10 +652,7 @@ writepiece(struct torrent *to, struct piece *pc)
 	/* read from file until piece is full */
 	l = pc->len;
 	while(l > 0 && i < to->filnum) {
-		if (mkdirtree(dirname(to->files[i].path), 0755) < 0) {
-			perror(to->files[i].path);
-			return -1;
-		}
+		mkdirtree(dirname(to->files[i].path), 0755);
 	        if ((fd = open(to->files[i].path, O_RDWR|O_CREAT, 0644)) < 0) {
 	                perror(to->files[i].path);
 	                return -1;
