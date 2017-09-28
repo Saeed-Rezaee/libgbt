@@ -2,6 +2,7 @@
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include <limits.h>
 #include <netdb.h>
 #include <stdio.h>
@@ -32,6 +33,7 @@ struct buffer {
 };
 
 static void * emalloc(size_t);
+static int mkdirtree(char *, mode_t);
 static size_t curlwrite(char *, size_t, size_t, struct buffer *);
 static int bit(uint8_t *, off_t);
 static uint8_t *setbit(uint8_t *, off_t);
@@ -108,6 +110,25 @@ emalloc(size_t s)
 
 	memset(p, 0, s);
 	return p;
+}
+
+static int
+mkdirtree(char *path, mode_t mode)
+{
+	char tmp[PATH_MAX] = "";
+	char *p = NULL;
+	size_t len;
+	snprintf(tmp, sizeof(tmp), "%s", path);
+	len = strlen(tmp);
+	if(tmp[len - 1] == '/')
+		tmp[len - 1] = 0;
+	for(p = tmp + 1; *p; p++)
+		if(*p == '/') {
+			*p = 0;
+			mkdir(tmp, mode);
+			*p = '/';
+		}
+	return mkdir(tmp, mode);
 }
 
 static size_t
@@ -631,6 +652,10 @@ writepiece(struct torrent *to, struct piece *pc)
 	/* read from file until piece is full */
 	l = pc->len;
 	while(l > 0 && i < to->filnum) {
+		if (mkdirtree(dirname(to->files[i].path), 0755) < 0) {
+			perror(to->files[i].path);
+			return -1;
+		}
 	        if ((fd = open(to->files[i].path, O_RDWR|O_CREAT, 0644)) < 0) {
 	                perror(to->files[i].path);
 	                return -1;
