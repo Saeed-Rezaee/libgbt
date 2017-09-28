@@ -787,7 +787,6 @@ requestblock(struct torrent *to, struct peer *p)
 	if (pwprequest(p, p->req.n, bo, bl) < 0)
 		return 0;
 
-	fprintf(stderr, "> request %lu (off:%d len:%d plen:%ld)\n", p->req.n, bo, bl, p->req.len);
 	p->lastreq = bo;
 	return 1;
 }
@@ -1056,8 +1055,6 @@ pwphave(struct peer *p, uint16_t pn)
 	pl[3] = (pn >> 0) & 0xff;
 	l = pwpfmt(sp, PWP_HAVE, pl, 4);
 
-	fprintf(stderr, "> have %d\n", pn);
-
 	return send(p->sockfd, msg, l, MSG_NOSIGNAL);
 }
 
@@ -1159,40 +1156,32 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 	switch (n) {
 	case PWP_CHOKE:
 		p->state |= PEER_AMCHOKED;
-		fprintf(stderr, "< choke\n");
 		break;
 	case PWP_UNCHOKE:
 		p->state &= ~PEER_AMCHOKED;
-		fprintf(stderr, "< unchoke\n");
 		break;
 	case PWP_INTERESTED:
 		p->state |= PEER_INTERESTED;
-		fprintf(stderr, "< interested\n");
 		break;
 	case PWP_UNINTERESTED:
 		p->state &= ~PEER_INTERESTED;
-		fprintf(stderr, "< uninterested\n");
 		break;
 	case PWP_HAVE:
 		pn = U32(msg + 5);
 		setbit(p->bitfield, pn);
-		fprintf(stderr, "< have %d\n", pn);
 		break;
 	case PWP_BITFIELD:
 		memcpy(p->bitfield, msg + 5, l - 5);
-		fprintf(stderr, "< bitfield 0x%s\n", tohex(p->bitfield, hex, l - 5));
 		break;
 	case PWP_REQUEST:
 		pn = U32(msg + 5);
 		bo = U32(msg + 9);
 		bl = U32(msg + 13);
-		fprintf(stderr, "< request %d (off:%d len:%d)\n", pn, bo, bl);
 		if (readpiece(to, &pc, pn)) {
 			if (bl > BLOCK_MAX)
 				return 0;
 			memcpy(blk, pc.data + bo, bl);
 			if (pwppiece(p, pn, bo, bl, blk)) {
-				fprintf(stderr, "> piece %d (off:%d len:%d)\n", pn, bo, bl);
 				to->upload += bl;
 			}
 		}
@@ -1203,7 +1192,6 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 		bl = U32(msg) - 9;
 		memcpy(p->req.data + bo, msg + 13, bl);
 		setbit(p->req.blocks, bo/BLOCK_MAX);
-		fprintf(stderr, "< piece %d (off:%d len:%d)\n", pn, bo, bl);
 		if (checkpiece(&p->req)) {
 			writepiece(to, &p->req);
 			pwphave(p, pn);
@@ -1350,7 +1338,6 @@ grizzly_leech(struct torrent *to)
 			if (FD_ISSET(p->sockfd, &wfds)) {
 				pwphandshake(to, p);
 				p->conn = CONN_HANDSHAKE;
-				fprintf(stderr, "> handshake\n");
 			}
 			break;
 		case CONN_HANDSHAKE:
@@ -1363,9 +1350,7 @@ grizzly_leech(struct torrent *to)
 					p->sockfd = -1;
 					continue;
 				}
-				fprintf(stderr, "< handshake\n");
 				pwpbitfield(p, to->bitfield, to->pcsnum);
-				fprintf(stderr, "> bitfield 0x%s\n", tohex(to->bitfield, hex, to->pcsnum/8 + !!(to->pcsnum%8)));
 			}
 			break;
 		case CONN_ESTAB:
@@ -1378,12 +1363,10 @@ grizzly_leech(struct torrent *to)
 				if (p->state & PEER_INTERESTED && p->state & PEER_CHOKED) {
 					pwpstate(p, PWP_UNCHOKE);
 					p->state &= ~(PEER_CHOKED);
-					fprintf(stderr, "> unchoke\n");
 				}
 				if (!(p->state & PEER_AMINTERESTED)) {
 					pwpstate(p, PWP_INTERESTED);
 					p->state |= PEER_AMINTERESTED;
-					fprintf(stderr, "> interested\n");
 				}
 				if (!(p->state & PEER_AMCHOKED) && (p->state & PEER_AMINTERESTED))
 					requestblock(to, p);
