@@ -1192,6 +1192,7 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 		bl = U32(msg) - 9;
 		memcpy(p->req.data + bo, msg + 13, bl);
 		setbit(p->req.blocks, bo/BLOCK_MAX);
+		to->download += bl;
 		if (checkpiece(&p->req)) {
 			writepiece(to, &p->req);
 			pwphave(p, pn);
