@@ -645,22 +645,24 @@ writepiece(struct torrent *to, struct piece *pc)
 	struct stat sb;
 
 	off = pc->n * to->piecelen;
+	l = pc->len;
 
 	/* find file where piece begins */
 	for (i = 0; off > to->files[i].len && i < to->nfile; i++)
 		off -= to->files[i].len;
 
-	/* read from file until piece is full */
-	l = pc->len;
+	/* write full piece to file(s) */
 	while(l > 0 && i < to->nfile) {
 		memcpy(dir, to->files[i].path, PATH_MAX);
-		if (stat(dirname(dir), &sb) < 0)
-			mkdirtree(dirname(to->files[i].path), 0755);
+		memcpy(dir, dirname(dir), PATH_MAX);
+		if (stat(dir, &sb) < 0)
+			mkdirtree(dir, 0755);
 	        if ((fd = open(to->files[i].path, O_RDWR|O_CREAT, 0644)) < 0) {
 	                perror(to->files[i].path);
 	                return -1;
 	        }
-		ftruncate(fd, to->files[i].len);
+		if (!stat(to->files[i].path, &sb) && (size_t)sb.st_size < to->files[i].len)
+			ftruncate(fd, to->files[i].len);
 
                 addr = mmap(0, to->files[i].len, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
                 if (addr == MAP_FAILED) {
@@ -668,10 +670,11 @@ writepiece(struct torrent *to, struct piece *pc)
                         close(fd);
 		}
 
-		memcpy(addr + off, pc->data, MIN((size_t)l, to->files[i].len - off));
+		memcpy(addr + off, pc->data + (pc->len - l), MIN((size_t)l, to->files[i].len - off));
 		munmap(addr, to->files[i].len);
 		close(fd);
 		l -= MIN((size_t)l, to->files[i].len - off);
+		off = 0;
 		i++;
 	}
 
@@ -699,7 +702,7 @@ readpiece(struct torrent *to, struct piece *pc, unsigned long n)
 		off -= to->files[i].len;
 
 	/* calculate expected piece len */
-	l = (n == to->npiece - 1) ? (to->size % to->piecelen) : to->piecelen;
+	l = piecelen(to, n);
 	r = 0;
 
 	/* read from file until piece is full */
@@ -708,11 +711,13 @@ readpiece(struct torrent *to, struct piece *pc, unsigned long n)
 			return 0;
 		if (!(f = fopen(to->files[i].path, "r")))
 			return 0;
-		fseek(f, off, SEEK_SET);
-		r = fread(pc->data + r, 1, MIN(l, to->files[i].len - off), f);
+		if (off > 0)
+			fseek(f, off, SEEK_SET);
+		r = fread(pc->data + pc->len, 1, MIN(l - pc->len, to->files[i].len - off), f);
 		pc->len += r;
 		fclose(f);
-		l -= r;
+		off = 0;
+		i++;
 	}
 
 	return checkpiece(pc) ? pc->len : 0;
