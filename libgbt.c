@@ -1317,6 +1317,9 @@ grizzly_leech(struct torrent *to)
 	FD_ZERO(&rfds);
 	FD_ZERO(&wfds);
 
+	if (TAILQ_EMPTY(to->peers))
+		return -1;
+
 	TAILQ_FOREACH(p, to->peers, entries) {
 		if (p->conn >= CONN_HANDSHAKE)
 			FD_SET(p->sockfd, &rfds);
@@ -1334,12 +1337,7 @@ grizzly_leech(struct torrent *to)
 		perror("select");
         }
 
-	if (TAILQ_EMPTY(to->peers))
-		return -1;
-
-	p = TAILQ_FIRST(to->peers);
-
-	while (p && (p = TAILQ_NEXT(p, entries))) {
+	TAILQ_FOREACH(p, to->peers, entries) {
 		switch (p->conn) {
 		/* ignore dropped peers */
 		case CONN_CLOSED:
