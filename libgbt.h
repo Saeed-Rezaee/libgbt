@@ -7,6 +7,7 @@
 #define PIECE_MAX 1048576
 #define BLOCK_MAX 16384
 #define MESSAGE_MAX ((BLOCK_MAX) + 13)
+#define PEER_MAX 8
 
 enum {
 	PWP_CHOKE = 0,
@@ -84,11 +85,11 @@ struct torrent {
 	uint8_t *bitfield;
 	char *pieces;
 	size_t size;
-	size_t filnum;
-	size_t pcsnum;
-	size_t piecelen;
 	size_t upload;
 	size_t download;
+	size_t nfile;
+	size_t npiece;
+	size_t piecelen;
 	struct file *files;
 	struct peers *peers;
 };

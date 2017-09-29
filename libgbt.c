@@ -571,7 +571,7 @@ metafiles(struct torrent *to)
 			sp = to->files[i].path;
 			bepath(&v, &sp, PATH_MAX);
 		}
-		to->filnum = i;
+		to->nfile = i;
 	} else { /* single-file torrent */
 		to->files = emalloc(sizeof(*to->files));
 		if (!bekv(&info, "length", 6, &v))
@@ -580,10 +580,10 @@ metafiles(struct torrent *to)
 		to->size += to->files[0].len;
 		memset(to->files[0].path, 0, PATH_MAX);
 		memcpy(to->files[0].path, name, l);
-		to->filnum = 1;
+		to->nfile = 1;
 	}
 
-	return to->filnum;
+	return to->nfile;
 }
 
 static size_t
@@ -602,10 +602,10 @@ metapieces(struct torrent *to)
 	if (!bestr(&v, &to->pieces, NULL))
 		return 0;
 
-	to->pcsnum = to->size/to->piecelen + !!(to->size%to->piecelen);
-	to->bitfield = emalloc(to->pcsnum / 8 + !!(to->pcsnum % 8));
+	to->npiece = to->size/to->piecelen + !!(to->size%to->piecelen);
+	to->bitfield = emalloc(to->npiece / 8 + !!(to->npiece % 8));
 
-	return to->pcsnum;
+	return to->npiece;
 }
 
 static int
@@ -639,20 +639,23 @@ static ssize_t
 writepiece(struct torrent *to, struct piece *pc)
 {
 	int fd;
-	char *addr;
+	char *addr, dir[PATH_MAX];
 	size_t off, i;
 	ssize_t l;
+	struct stat sb;
 
 	off = pc->n * to->piecelen;
 
 	/* find file where piece begins */
-	for (i = 0; off > to->files[i].len && i < to->filnum; i++)
+	for (i = 0; off > to->files[i].len && i < to->nfile; i++)
 		off -= to->files[i].len;
 
 	/* read from file until piece is full */
 	l = pc->len;
-	while(l > 0 && i < to->filnum) {
-		mkdirtree(dirname(to->files[i].path), 0755);
+	while(l > 0 && i < to->nfile) {
+		memcpy(dir, to->files[i].path, PATH_MAX);
+		if (stat(dirname(dir), &sb) < 0)
+			mkdirtree(dirname(to->files[i].path), 0755);
 	        if ((fd = open(to->files[i].path, O_RDWR|O_CREAT, 0644)) < 0) {
 	                perror(to->files[i].path);
 	                return -1;
@@ -692,16 +695,16 @@ readpiece(struct torrent *to, struct piece *pc, unsigned long n)
 	memset(pc->blocks, 0, PIECE_MAX/(8*BLOCK_MAX));
 
 	/* find file where piece begins */
-	for (i = 0; i < to->filnum && off > to->files[i].len; i++)
+	for (i = 0; i < to->nfile && off > to->files[i].len; i++)
 		off -= to->files[i].len;
 
 	/* calculate expected piece len */
-	l = (n == to->pcsnum - 1) ? (to->size % to->piecelen) : to->piecelen;
+	l = (n == to->npiece - 1) ? (to->size % to->piecelen) : to->piecelen;
 	r = 0;
 
 	/* read from file until piece is full */
 	while(pc->len < l) {
-		if (i >= to->filnum)
+		if (i >= to->nfile)
 			return 0;
 		if (!(f = fopen(to->files[i].path, "r")))
 			return 0;
@@ -718,16 +721,16 @@ readpiece(struct torrent *to, struct piece *pc, unsigned long n)
 static uint32_t
 piecelen(struct torrent *to, uint32_t n)
 {
-	if (n >= to->pcsnum)
+	if (n >= to->npiece)
 		return 0;
 
-	return (n == to->pcsnum - 1) ? to->size % to->piecelen : to->piecelen;
+	return (n == to->npiece - 1) ? to->size % to->piecelen : to->piecelen;
 }
 
 static uint32_t
 blocklen(struct torrent *to, struct piece pc, uint32_t o)
 {
-	if (pc.n >= to->pcsnum)
+	if (pc.n >= to->npiece)
 		return 0;
 
 	if (o >= pc.len)
@@ -744,7 +747,7 @@ piecereqrand(struct torrent *to)
 	srand(time(NULL)); /* good-enough seed */
 
 	do {
-		n = rand() % (to->pcsnum + 1);
+		n = rand() % (to->npiece + 1);
 	} while (!bit(to->bitfield, n));
 
 	return to->pieces[n];
@@ -764,7 +767,7 @@ requestblock(struct torrent *to, struct peer *p)
 	}
 
 	/* not requesting anything from peer yet */
-	for (i = 0; p->lastreq < 0 && i < to->pcsnum; i++) {
+	for (i = 0; p->lastreq < 0 && i < to->npiece; i++) {
 		/* find a piece in peer bitfield we don't have yet */
 		if (bit(p->bitfield, i) && !bit(to->bitfield, i)) {
 			p->req.n = i;
@@ -775,7 +778,7 @@ requestblock(struct torrent *to, struct peer *p)
 	}
 
 	/* this peer is of no help for us */
-	if (i >= (to->pcsnum))
+	if (i >= (to->npiece))
 		return 0;
 
 	bo = p->lastreq < 0 ? 0 : p->lastreq + BLOCK_MAX;
@@ -833,7 +836,7 @@ httpsend(struct torrent *to, char *ev, struct be *reply)
 		"&uploaded=%zu&downloaded=%zu&left=%zu"
 		"%s%s&compact=1",
 		to->announce, to->peerid, urlencode(to->infohash, 20), 65535,
-		to->upload, to->download, to->size,
+		to->upload, to->download, to->size - to->download,
 		(ev ? "&event=" : ""), (ev ? ev : ""));
 
 	memset(&b, 0, sizeof(b));
@@ -1145,7 +1148,6 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 {
 	int n;
 	struct piece pc;
-	char hex[41];
 	uint8_t blk[BLOCK_MAX];
 	uint32_t pn, bo, bl;
 
@@ -1259,9 +1261,11 @@ grizzly_load(struct torrent *to, char *path, long *thpinterval)
 		return 0;
 	}
 
-	for (i = 0; (size_t)i < to->pcsnum; i++) {
-		if (readpiece(to, &pc, i) > 0)
+	for (i = 0; (size_t)i < to->npiece; i++) {
+		if (readpiece(to, &pc, i) > 0) {
 			setbit(to->bitfield, i);
+			to->download += pc.len;
+		}
 	}
 
 	if ((i = thpsend(to, THP_STARTED)) < 0)
@@ -1273,7 +1277,7 @@ grizzly_load(struct torrent *to, char *path, long *thpinterval)
 	TAILQ_FOREACH(p, to->peers, entries) {
 		pwpinit(p);
 		p->conn = CONN_INIT;
-		p->bitfield = emalloc(to->pcsnum / 8 + !!(to->pcsnum % 8));
+		p->bitfield = emalloc(to->npiece / 8 + !!(to->npiece % 8));
 		p->lastreq = -1;
 		p->msglen = 0;
 		p->req.n = 0;
@@ -1300,9 +1304,7 @@ grizzly_leech(struct torrent *to)
 {
 	int n, fdmax;
 	fd_set rfds, wfds;
-	char hex[41];
 	ssize_t l;
-	uint8_t msg[MESSAGE_MAX];
 	struct peer *p;
 	struct timeval tv;
 
@@ -1327,8 +1329,12 @@ grizzly_leech(struct torrent *to)
 		perror("select");
         }
 
-	TAILQ_FOREACH(p, to->peers, entries) {
-		memset(msg, 0, MESSAGE_MAX);
+	if (TAILQ_EMPTY(to->peers))
+		return -1;
+
+	p = TAILQ_FIRST(to->peers);
+
+	while (p && (p = TAILQ_NEXT(p, entries))) {
 		switch (p->conn) {
 		/* ignore dropped peers */
 		case CONN_CLOSED:
@@ -1351,7 +1357,7 @@ grizzly_leech(struct torrent *to)
 					p->sockfd = -1;
 					continue;
 				}
-				pwpbitfield(p, to->bitfield, to->pcsnum);
+				pwpbitfield(p, to->bitfield, to->npiece);
 			}
 			break;
 		case CONN_ESTAB:
@@ -1384,9 +1390,10 @@ grizzly_finished(struct torrent *to)
 {
 	size_t i;
 
-	for (i = 0; i < to->pcsnum; i++) {
+	for (i = 0; i < to->npiece; i++) {
 		if (!bit(to->bitfield, i))
 			return 0;
 	}
+
 	return 1;
 }
