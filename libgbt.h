@@ -88,6 +88,7 @@ struct torrent {
 	size_t upload;
 	size_t download;
 	size_t nfile;
+	size_t npeer;
 	size_t npiece;
 	size_t piecelen;
 	struct file *files;

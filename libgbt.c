@@ -943,7 +943,7 @@ updatepeers(struct torrent *to, struct be *reply)
 	TAILQ_FOREACH(p, to->peers, entries)
 		n++;
 
-	return n;
+	return (to->npeer = n);
 }
 
 static int

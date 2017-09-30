@@ -43,7 +43,8 @@ main(int argc, char *argv[])
 
 		/* request and download pieces */
 		grizzly_leech(&to);
-		printf("\rtorrent: %8ld/%ld (%3ld%%)", to.download, to.size, to.download * 100 / to.size);
+		printf("\rtorrent: peers:%ld up:%ld, down:%ld/%ld (%ld%%)",
+			to.npeer, to.upload, to.download, to.size, to.download * 100 / to.size);
 		fflush(stdout);
 	}
 	putchar('\n');
