@@ -1390,7 +1390,7 @@ grizzly_leech(struct torrent *to)
 					p->conn = CONN_CLOSED;
 					close(p->sockfd);
 					p->sockfd = -1;
-					p->npeer--;
+					to->npeer--;
 					continue;
 				}
 				pwpbitfield(p, to->bitfield, to->npiece);
