@@ -57,6 +57,7 @@ static char betype(struct be *);
 static int bekv(struct be *, char *, size_t, struct be *);
 static int bepath(struct be *, char **, size_t);
 
+static char *peerid();
 static size_t metainfohash(struct torrent *);
 static size_t metaannounce(struct torrent *);
 static size_t metafiles(struct torrent *);
@@ -70,7 +71,6 @@ static uint32_t piecelen(struct torrent *, uint32_t);
 static uint32_t blocklen(struct torrent *, struct piece, uint32_t);
 static long randompiece(struct torrent *);
 static long selectpiece(struct torrent *, uint8_t *);
-
 static long requestblock(struct torrent *, struct peer *);
 
 static size_t bestr2peer(struct peers *, char *, size_t);
@@ -502,6 +502,23 @@ bepath(struct be *b, char **p, size_t l)
 	return 1;
 }
 
+static char *
+peerid()
+{
+	uint8_t n;
+	unsigned char hash[20];
+	char hexa[40];
+	static char peerid[21] = PEERID;
+
+	srand(time(NULL)); /* good-enough seed */
+	n = rand();
+	snprintf(hexa, 40, "%08x%08x\n", n, ~n);
+	sha1((unsigned char *)hexa, 16, hash);
+	memcpy(peerid + 8, tohex(hash, hexa, 16), 16);
+
+	return peerid;
+}
+
 static size_t
 metainfohash(struct torrent *to)
 {
@@ -616,7 +633,7 @@ metainfo(struct torrent *to, char *buf, size_t len)
 	to->download = 0;
 	to->peers = NULL;
 	memset(to->peerid, 0, 21);
-	memcpy(to->peerid, PEERID, 20);
+	memcpy(to->peerid, peerid(), 20);
 	beinit(&to->meta, buf, len);
 
 	metainfohash(to);
