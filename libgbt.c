@@ -68,7 +68,7 @@ static ssize_t writepiece(struct torrent *, struct piece *);
 static ssize_t readpiece(struct torrent *, struct piece *, unsigned long);
 static uint32_t piecelen(struct torrent *, uint32_t);
 static uint32_t blocklen(struct torrent *, struct piece, uint32_t);
-static long piecereqrand(struct torrent *);
+static long randompiece(struct torrent *);
 static long selectpiece(struct torrent *, uint8_t *);
 
 static long requestblock(struct torrent *, struct peer *);
@@ -746,7 +746,7 @@ blocklen(struct torrent *to, struct piece pc, uint32_t o)
 }
 
 static long
-piecereqrand(struct torrent *to)
+randompiece(struct torrent *to)
 {
 	long n;
 
@@ -756,7 +756,7 @@ piecereqrand(struct torrent *to)
 		n = rand() % (to->npiece + 1);
 	} while (!bit(to->bitfield, n));
 
-	return to->pieces[n];
+	return n;
 }
 
 static long
