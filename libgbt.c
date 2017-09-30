@@ -69,6 +69,7 @@ static ssize_t readpiece(struct torrent *, struct piece *, unsigned long);
 static uint32_t piecelen(struct torrent *, uint32_t);
 static uint32_t blocklen(struct torrent *, struct piece, uint32_t);
 static long piecereqrand(struct torrent *);
+static long selectpiece(struct torrent *, uint8_t *);
 
 static long requestblock(struct torrent *, struct peer *);
 
@@ -759,9 +760,27 @@ piecereqrand(struct torrent *to)
 }
 
 static long
-requestblock(struct torrent *to, struct peer *p)
+selectpiece(struct torrent *to, uint8_t *bitfield)
 {
 	size_t i;
+	struct peer *p;
+
+	for (i = 0; i < to->npiece; i++) {
+		TAILQ_FOREACH(p, to->peers, entries) {
+			if (p->req.n == i && p->lastreq >= 0)
+				break;
+		}
+		if (!p && !bit(to->bitfield, i) && bit(bitfield, i))
+			return i;
+	}
+
+	return -1;
+}
+
+static long
+requestblock(struct torrent *to, struct peer *p)
+{
+	ssize_t i;
 	uint32_t bo, bl;
 
 	/* reset piece request when we have the piece */
@@ -771,19 +790,15 @@ requestblock(struct torrent *to, struct peer *p)
 		memset(p->req.blocks, 0, to->piecelen/(8*BLOCK_MAX));
 	}
 
-	/* not requesting anything from peer yet */
-	for (i = 0; p->lastreq < 0 && i < to->npiece; i++) {
-		/* find a piece in peer bitfield we don't have yet */
-		if (bit(p->bitfield, i) && !bit(to->bitfield, i)) {
-			p->req.n = i;
-			p->req.len = piecelen(to, i);
-			p->req.sha1 = to->pieces + i * 20;
-			break;
-		}
+	/* request a piece that hasn't been requested yet */
+	if (p->lastreq < 0 && (i = selectpiece(to, p->bitfield)) >= 0) {
+		p->req.n = i;
+		p->req.len = piecelen(to, i);
+		p->req.sha1 = to->pieces + i * 20;
 	}
 
 	/* this peer is of no help for us */
-	if (i >= (to->npiece))
+	if (p->req.n >= (to->npiece) || !bit(p->bitfield, p->req.n))
 		return 0;
 
 	bo = p->lastreq < 0 ? 0 : p->lastreq + BLOCK_MAX;
