@@ -771,7 +771,7 @@ randompiece(struct torrent *to)
 
 	do {
 		n = rand() % (to->npiece + 1);
-	} while (!bit(to->bitfield, n));
+	} while (bit(to->bitfield, n));
 
 	return n;
 }
