@@ -3,16 +3,6 @@ bencoding
 * UTF-8 support for strings (josuah)
 * function to bencode() a structure (r4ndom)
 
-pieces and blocks
------------------
-* calculate SHA1 for a piece
-* add blocks to pieces
-* write pieces to files
-
-metainfo
---------
-* check metainfo file content
-
 tracker HTTP protocol
 ---------------------
 * replace libcurl with http.c
@@ -20,8 +10,6 @@ tracker HTTP protocol
 peer wire protocol
 ------------------
 * bind() + listen()
-* request
-* piece
 * cancel
 * end game
 
@@ -30,7 +18,11 @@ overall
 * get a cool logo (please rocx!)
 * engineer the library API
 * write the documentation of the API
-* create a small example torrent client
+* fix valgrind's memleak output
+* harden message parsing
+* harden socket handling
+* implement throttling
 
 RFC parts to implement
 ----------------------
+* end game
