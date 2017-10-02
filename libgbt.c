@@ -1326,6 +1326,24 @@ grizzly_load(struct torrent *to, char *path, long *thpinterval)
 }
 
 int
+grizzly_unload(struct torrent *to)
+{
+	struct peer *p;
+	free(to->files);
+	free(to->bitfield);
+	while(!TAILQ_EMPTY(to->peers)) {
+		p = TAILQ_FIRST(to->peers);
+		TAILQ_REMOVE(to->peers, p, entries);
+		if (p->conn != CONN_CLOSED)
+			close(p->sockfd);
+		free(p->bitfield);
+		free(p);
+	}
+	free(to->peers);
+	return 1;
+}
+
+int
 grizzly_thpheartbeat(struct torrent *to, long *thpinterval)
 {
 	long i;

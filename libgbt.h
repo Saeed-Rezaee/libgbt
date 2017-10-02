@@ -96,6 +96,7 @@ struct torrent {
 };
 
 int grizzly_load(struct torrent *, char *, long *);
+int grizzly_unload(struct torrent *);
 int grizzly_thpheartbeat(struct torrent *to, long *);
 int grizzly_leech(struct torrent *to);
 int grizzly_finished(struct torrent *to);

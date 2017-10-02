@@ -49,5 +49,7 @@ main(int argc, char *argv[])
 	}
 	putchar('\n');
 
+	grizzly_unload(&to);
+
 	return 0;
 }
