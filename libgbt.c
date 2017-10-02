@@ -815,7 +815,7 @@ requestblock(struct torrent *to, struct peer *p)
 	}
 
 	/* this peer is of no help for us */
-	if (p->req.n >= (to->npiece) || !bit(p->bitfield, p->req.n))
+	if (p->req.n >= (to->npiece))
 		return 0;
 
 	bo = p->lastreq < 0 ? 0 : p->lastreq + BLOCK_MAX;
@@ -1212,13 +1212,19 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 		p->state &= ~PEER_INTERESTED;
 		break;
 	case PWP_HAVE:
+		if (l < 5)
+			return 0;
 		pn = U32(msg + 5);
 		setbit(p->bitfield, pn);
 		break;
 	case PWP_BITFIELD:
+		if (l < 6)
+			return 0;
 		memcpy(p->bitfield, msg + 5, l - 5);
 		break;
 	case PWP_REQUEST:
+		if (l < 17)
+			return 0;
 		pn = U32(msg + 5);
 		bo = U32(msg + 9);
 		bl = U32(msg + 13);
@@ -1232,6 +1238,8 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 		}
 		break;
 	case PWP_PIECE:
+		if (l < 14)
+			return 0;
 		pn = U32(msg + 5);
 		bo = U32(msg + 9);
 		bl = U32(msg) - 9;
