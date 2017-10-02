@@ -849,8 +849,11 @@ bestr2peer(struct peers *ph, char *buf, size_t len)
 		p->peer.sin_family = AF_INET;
 		memcpy(&p->peer.sin_port, &buf[i * 6] + 4, 2);
 		memcpy(&p->peer.sin_addr, &buf[i * 6], 4);
-		if (p->peer.sin_port != 65535)
-			TAILQ_INSERT_TAIL(ph, p, entries);
+		if (p->peer.sin_port == 65535) {
+			free(p);
+			continue;
+		}
+		TAILQ_INSERT_TAIL(ph, p, entries);
 	}
 
 	return i;
@@ -861,8 +864,8 @@ httpsend(struct torrent *to, char *ev, struct be *reply)
 {
 	static struct buffer b;
 	char  *infohash, url[PATH_MAX] = {0};
-	CURL *c;
-	CURLcode r;
+	CURL *c = NULL;
+	CURLcode r = 0;
 
 	c = curl_easy_init();
 	if (!c)
@@ -932,15 +935,16 @@ updatepeers(struct torrent *to, struct be *reply)
 
 	/* Add new peers */
 	p = TAILQ_FIRST(&ph);
-	do {
-		if (findpeer(to->peers, p)) {
-			p = TAILQ_PREV(p, peers, entries);
-			TAILQ_REMOVE(&ph, p, entries);
+	while(!TAILQ_EMPTY(&ph)) {
+		p = TAILQ_FIRST(&ph);
+		TAILQ_REMOVE(&ph, p, entries);
+		if (!findpeer(to->peers, p)) {
+			TAILQ_INSERT_TAIL(to->peers, p, entries);
+		} else {
+			free(p);
+			p = NULL;
 		}
-	} while(p && (p = TAILQ_NEXT(p, entries)));
-
-	if (!TAILQ_EMPTY(&ph))
-		TAILQ_CONCAT(to->peers, &ph, entries);
+	}
 
 	TAILQ_FOREACH(p, to->peers, entries)
 		n++;
@@ -1331,6 +1335,7 @@ grizzly_unload(struct torrent *to)
 	struct peer *p;
 	free(to->files);
 	free(to->bitfield);
+	free(to->meta.start);
 	while(!TAILQ_EMPTY(to->peers)) {
 		p = TAILQ_FIRST(to->peers);
 		TAILQ_REMOVE(to->peers, p, entries);
