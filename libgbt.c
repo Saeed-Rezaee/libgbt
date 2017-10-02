@@ -1431,6 +1431,8 @@ grizzly_leech(struct torrent *to)
 				}
 				if (!(p->state & PEER_AMCHOKED) && (p->state & PEER_AMINTERESTED))
 					requestblock(to, p);
+				if (0)
+					pwpheartbeat(p);
 			}
 			break;
 		}
