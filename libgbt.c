@@ -860,7 +860,7 @@ static int
 httpsend(struct torrent *to, char *ev, struct be *reply)
 {
 	static struct buffer b;
-	char  url[PATH_MAX] = {0};
+	char  *infohash, url[PATH_MAX] = {0};
 	CURL *c;
 	CURLcode r;
 
@@ -868,11 +868,12 @@ httpsend(struct torrent *to, char *ev, struct be *reply)
 	if (!c)
 		return -1;
 
+	infohash = urlencode(to->infohash, 20);
 	snprintf(url, PATH_MAX,
 		"%s?peer_id=%s&info_hash=%s&port=%d"
 		"&uploaded=%zu&downloaded=%zu&left=%zu"
 		"%s%s&compact=1",
-		to->announce, to->peerid, urlencode(to->infohash, 20), 65535,
+		to->announce, to->peerid, infohash, 65535,
 		to->upload, to->download, to->size - to->download,
 		(ev ? "&event=" : ""), (ev ? ev : ""));
 
@@ -884,6 +885,7 @@ httpsend(struct torrent *to, char *ev, struct be *reply)
 	if (r != CURLE_OK)
 		errx(1, "%s", curl_easy_strerror(r));
 
+	free(infohash);
 	curl_easy_cleanup(c);
 
 	return beinit(reply, b.buf, b.siz);
