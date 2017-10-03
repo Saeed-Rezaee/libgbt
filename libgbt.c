@@ -919,6 +919,17 @@ updatepeers(struct torrent *to, struct be *reply)
 		errx(1, "'%c': Unsupported type for peers", betype(&v));
 	}
 
+	/* Clear old peers */
+	p = TAILQ_FIRST(to->peers);
+	while(p) {
+		if (p->conn == CONN_CLOSED) {
+			TAILQ_REMOVE(to->peers, p, entries);
+			p = TAILQ_FIRST(to->peers);
+		} else {
+			p = TAILQ_NEXT(p, entries);
+		}
+	}
+
 	/* Add new peers */
 	p = TAILQ_FIRST(&ph);
 	while(!TAILQ_EMPTY(&ph)) {
