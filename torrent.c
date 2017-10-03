@@ -22,6 +22,7 @@ usage(char *name)
 int
 main(int argc, char *argv[])
 {
+	ssize_t dl = -1;
 	long interval;
 	struct torrent to;
 	struct timespec lastsent, now;
@@ -43,9 +44,12 @@ main(int argc, char *argv[])
 
 		/* request and download pieces */
 		grizzly_leech(&to);
-		printf("\rtorrent: peers:%ld up:%ld, down:%ld/%ld (%ld%%)",
-			to.npeer, to.upload, to.download, to.size, to.download * 100 / to.size);
-		fflush(stdout);
+		if (dl < (ssize_t)to.download) {
+			dl = to.download;
+			printf("\rtorrent: peers:%ld up:%ld, down:%ld/%ld (%ld%%)",
+				to.npeer, to.upload, to.download, to.size, to.download * 100 / to.size);
+			fflush(stdout);
+		}
 	}
 	putchar('\n');
 
