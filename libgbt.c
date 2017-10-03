@@ -861,10 +861,10 @@ httpsend(struct torrent *to, char *ev, struct be *reply)
 	snprintf(url, PATH_MAX,
 		"%s?peer_id=%s&info_hash=%s&port=%d"
 		"&uploaded=%zu&downloaded=%zu&left=%zu"
-		"%s%s&compact=1",
+		"%s%s&numwant=%d&compact=1",
 		to->announce, to->peerid, infohash, 65535,
 		to->upload, to->download, to->size - to->download,
-		(ev ? "&event=" : ""), (ev ? ev : ""));
+		(ev ? "&event=" : ""), (ev ? ev : ""), PEER_MAX);
 
 	memset(&b, 0, sizeof(b));
 	curl_easy_setopt(c, CURLOPT_URL, url);
