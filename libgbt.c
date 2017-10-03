@@ -628,6 +628,7 @@ metapieces(struct torrent *to)
 static int
 metainfo(struct torrent *to, char *buf, size_t len)
 {
+	to->npeer = 0;
 	to->upload = 0;
 	to->download = 0;
 	to->peers = NULL;
@@ -894,7 +895,7 @@ static int
 updatepeers(struct torrent *to, struct be *reply)
 {
 	char *s;
-	size_t l, n = 0;
+	size_t l;
 	struct peers ph;
 	struct peer *p;
 	struct be v;
@@ -923,18 +924,16 @@ updatepeers(struct torrent *to, struct be *reply)
 	while(!TAILQ_EMPTY(&ph)) {
 		p = TAILQ_FIRST(&ph);
 		TAILQ_REMOVE(&ph, p, entries);
-		if (!findpeer(to->peers, p)) {
+		if (to->npeer < PEER_MAX && !findpeer(to->peers, p)) {
 			TAILQ_INSERT_TAIL(to->peers, p, entries);
+			to->npeer++;
 		} else {
 			free(p);
 			p = NULL;
 		}
 	}
 
-	TAILQ_FOREACH(p, to->peers, entries)
-		n++;
-
-	return (to->npeer = n);
+	return to->npeer;
 }
 
 static int
