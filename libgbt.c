@@ -884,7 +884,7 @@ findpeer(struct peers *ph, struct peer *p)
 {
 	struct peer *np;
 	TAILQ_FOREACH(np, ph, entries) {
-		if (memcmp(&np->peer, &p->peer, sizeof(np->peer)))
+		if (!memcmp(&np->peer, &p->peer, sizeof(np->peer)))
 			return np;
 	}
 	return NULL;
