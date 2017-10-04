@@ -22,7 +22,13 @@ overall
 * harden message parsing
 * harden socket handling
 * implement throttling
+* improve DL algorithm
 
 RFC parts to implement
 ----------------------
 * end game
+
+Bonus
+-----
+* DHT
+* Encryption
