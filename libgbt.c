@@ -34,7 +34,6 @@ struct buffer {
 
 static void * emalloc(size_t);
 static int mkdirtree(char *, mode_t);
-static size_t curlwrite(char *, size_t, size_t, struct buffer *);
 static int bit(uint8_t *, off_t);
 static uint8_t *setbit(uint8_t *, off_t);
 static uint8_t *clrbit(uint8_t *, off_t);
@@ -76,6 +75,8 @@ static long requestblock(struct torrent *, struct peer *);
 static void cleanpeers(struct torrent *);
 static struct peer * findpeer(struct peers *, struct peer *);
 static struct peer * addpeer(struct peers *, struct sockaddr_in);
+
+static size_t curlwrite(char *, size_t, size_t, struct buffer *);
 static int httpsend(struct torrent *, char *, struct be *);
 static int thppeers(struct torrent *, struct be *);
 static int thpsend(struct torrent *, int);
@@ -131,15 +132,6 @@ mkdirtree(char *path, mode_t mode)
 			*p = '/';
 		}
 	return mkdir(tmp, mode);
-}
-
-static size_t
-curlwrite(char *ptr, size_t size, size_t nmemb, struct buffer *userdata)
-{
-	userdata->buf = realloc(userdata->buf, userdata->siz + size*nmemb);
-	memcpy(userdata->buf + userdata->siz, ptr, size*nmemb);
-	userdata->siz += size*nmemb;
-	return userdata->siz;
 }
 
 static uint8_t *
@@ -916,6 +908,15 @@ addpeer(struct peers *ph, struct sockaddr_in addr)
 	TAILQ_INSERT_TAIL(ph, p, entries);
 
 	return p;
+}
+
+static size_t
+curlwrite(char *ptr, size_t size, size_t nmemb, struct buffer *userdata)
+{
+	userdata->buf = realloc(userdata->buf, userdata->siz + size*nmemb);
+	memcpy(userdata->buf + userdata->siz, ptr, size*nmemb);
+	userdata->siz += size*nmemb;
+	return userdata->siz;
 }
 
 static int
