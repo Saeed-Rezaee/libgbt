@@ -73,7 +73,9 @@ static long selectpiece(struct torrent *, uint8_t *);
 static long requestblock(struct torrent *, struct peer *);
 
 static size_t bestr2peer(struct peers *, char *, size_t);
+static void cleanpeers(struct torrent *);
 static struct peer * findpeer(struct peers *, struct peer *);
+static struct peer * addpeer(struct peers *, struct sockaddr_in);
 static int httpsend(struct torrent *, char *, struct be *);
 static int thppeers(struct torrent *, struct be *);
 static int thpsend(struct torrent *, int);
@@ -821,25 +823,17 @@ static size_t
 bestr2peer(struct peers *ph, char *buf, size_t len)
 {
 	size_t i;
-	struct peer *p;
+	struct sockaddr_in addr;
 
 	if (len % 6)
 		errx(1, "%zu: Not a multiple of 6", len);
 
 	for (i = 0; i < len/6; i++) {
-		p = emalloc(sizeof(*p));
-		p->conn = CONN_CLOSED;
-		p->state = 0;
-		p->state |= PEER_CHOKED;
-		p->state |= PEER_AMCHOKED;
-		p->peer.sin_family = AF_INET;
-		memcpy(&p->peer.sin_port, &buf[i * 6] + 4, 2);
-		memcpy(&p->peer.sin_addr, &buf[i * 6], 4);
-		if (p->peer.sin_port == 65535) {
-			free(p);
-			continue;
-		}
-		TAILQ_INSERT_TAIL(ph, p, entries);
+		addr.sin_family = AF_INET;
+		memcpy(&addr.sin_port, &buf[i * 6] + 4, 2);
+		memcpy(&addr.sin_addr, &buf[i * 6], 4);
+		if (addr.sin_port != 65535)
+			addpeer(ph, addr);
 	}
 
 	return i;
@@ -891,6 +885,38 @@ findpeer(struct peers *ph, struct peer *p)
 	return NULL;
 }
 
+static void
+cleanpeers(struct torrent *to)
+{
+	struct peer *p = NULL;
+
+	p = TAILQ_FIRST(to->peers);
+	while(p) {
+		if (p->conn == CONN_CLOSED) {
+			TAILQ_REMOVE(to->peers, p, entries);
+			p = TAILQ_FIRST(to->peers);
+		} else {
+			p = TAILQ_NEXT(p, entries);
+		}
+	}
+}
+
+static struct peer *
+addpeer(struct peers *ph, struct sockaddr_in addr)
+{
+	struct peer *p = NULL;
+
+	p = emalloc(sizeof(*p));
+	p->conn = CONN_CLOSED;
+	p->state = 0;
+	p->state |= PEER_CHOKED;
+	p->state |= PEER_AMCHOKED;
+	memcpy(&p->peer, &addr, sizeof(addr));
+	TAILQ_INSERT_TAIL(ph, p, entries);
+
+	return p;
+}
+
 static int
 thppeers(struct torrent *to, struct be *reply)
 {
@@ -920,15 +946,7 @@ thppeers(struct torrent *to, struct be *reply)
 	}
 
 	/* Clear old peers */
-	p = TAILQ_FIRST(to->peers);
-	while(p) {
-		if (p->conn == CONN_CLOSED) {
-			TAILQ_REMOVE(to->peers, p, entries);
-			p = TAILQ_FIRST(to->peers);
-		} else {
-			p = TAILQ_NEXT(p, entries);
-		}
-	}
+	cleanpeers(to);
 
 	/* Add new peers */
 	p = TAILQ_FIRST(&ph);
