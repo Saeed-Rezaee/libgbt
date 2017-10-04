@@ -73,9 +73,9 @@ static long selectpiece(struct torrent *, uint8_t *);
 static long requestblock(struct torrent *, struct peer *);
 
 static size_t bestr2peer(struct peers *, char *, size_t);
-static int httpsend(struct torrent *, char *, struct be *);
 static struct peer * findpeer(struct peers *, struct peer *);
-static int updatepeers(struct torrent *, struct be *);
+static int httpsend(struct torrent *, char *, struct be *);
+static int thppeers(struct torrent *, struct be *);
 static int thpsend(struct torrent *, int);
 
 static int pwpinit(struct peer *);
@@ -892,7 +892,7 @@ findpeer(struct peers *ph, struct peer *p)
 }
 
 static int
-updatepeers(struct torrent *to, struct be *reply)
+thppeers(struct torrent *to, struct be *reply)
 {
 	char *s;
 	size_t l;
@@ -966,7 +966,7 @@ thpsend(struct torrent *to, int ev)
 		errx(1, "Missing key 'interval'");
 
 	beint(&v, &interval);
-	updatepeers(to, &reply);
+	thppeers(to, &reply);
 
 	return interval;
 }
