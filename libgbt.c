@@ -56,6 +56,7 @@ static int bedictnext(struct be *, char **, size_t *, struct be *);
 static char betype(struct be *);
 static int bekv(struct be *, char *, size_t, struct be *);
 static int bepath(struct be *, char **, size_t);
+static size_t bestr2peer(struct peers *, char *, size_t);
 
 static char *peerid();
 static size_t metainfohash(struct torrent *);
@@ -72,7 +73,6 @@ static uint32_t blocklen(struct torrent *, struct piece, uint32_t);
 static long selectpiece(struct torrent *, uint8_t *);
 static long requestblock(struct torrent *, struct peer *);
 
-static size_t bestr2peer(struct peers *, char *, size_t);
 static void cleanpeers(struct torrent *);
 static struct peer * findpeer(struct peers *, struct peer *);
 static struct peer * addpeer(struct peers *, struct sockaddr_in);
@@ -503,6 +503,27 @@ bepath(struct be *b, char **p, size_t l)
 	return 1;
 }
 
+static size_t
+bestr2peer(struct peers *ph, char *buf, size_t len)
+{
+	size_t i;
+	struct sockaddr_in addr;
+
+	if (len % 6)
+		errx(1, "%zu: Not a multiple of 6", len);
+
+	for (i = 0; i < len/6; i++) {
+		addr.sin_family = AF_INET;
+		memcpy(&addr.sin_port, &buf[i * 6] + 4, 2);
+		memcpy(&addr.sin_addr, &buf[i * 6], 4);
+		if (addr.sin_port != 65535)
+			addpeer(ph, addr);
+	}
+
+	return i;
+}
+
+
 static char *
 peerid()
 {
@@ -817,26 +838,6 @@ requestblock(struct torrent *to, struct peer *p)
 
 	p->lastreq = bo;
 	return 1;
-}
-
-static size_t
-bestr2peer(struct peers *ph, char *buf, size_t len)
-{
-	size_t i;
-	struct sockaddr_in addr;
-
-	if (len % 6)
-		errx(1, "%zu: Not a multiple of 6", len);
-
-	for (i = 0; i < len/6; i++) {
-		addr.sin_family = AF_INET;
-		memcpy(&addr.sin_port, &buf[i * 6] + 4, 2);
-		memcpy(&addr.sin_addr, &buf[i * 6], 4);
-		if (addr.sin_port != 65535)
-			addpeer(ph, addr);
-	}
-
-	return i;
 }
 
 static int
