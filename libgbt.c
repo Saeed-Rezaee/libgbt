@@ -93,8 +93,7 @@ static ssize_t pwppiece(struct peer *, uint32_t, uint32_t, uint32_t, uint8_t *);
 static ssize_t pwpcancel(struct peer *, off_t, off_t, size_t);
 static ssize_t pwpheartbeat(struct peer *);
 static int pwprecvhandler(struct torrent *, struct peer *, uint8_t *, ssize_t);
-
-static int handshakeisvalid(struct torrent *, uint8_t *, size_t);
+static int pwphsck(struct torrent *, uint8_t *, size_t);
 
 static char *event[] = {
 	[THP_NONE]      = NULL,
@@ -1277,7 +1276,7 @@ pwprecvhandler(struct torrent *to, struct peer *p, uint8_t *msg, ssize_t l)
 }
 
 static int
-handshakeisvalid(struct torrent *to, uint8_t *hs, size_t l)
+pwphsck(struct torrent *to, uint8_t *hs, size_t l)
 {
 	if (l != 68)
 		return 0;
@@ -1434,7 +1433,7 @@ grizzly_leech(struct torrent *to)
 			if (FD_ISSET(p->sockfd, &rfds)) {
 				p->conn = CONN_ESTAB;
 				l = pwprecv(p);
-				if (l < 0 || !handshakeisvalid(to, p->msg, l)) {
+				if (l < 0 || !pwphsck(to, p->msg, l)) {
 					p->conn = CONN_CLOSED;
 					close(p->sockfd);
 					p->sockfd = -1;
