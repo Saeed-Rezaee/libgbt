@@ -32,6 +32,7 @@ struct buffer {
 	size_t siz;
 };
 
+/* various usage functions */
 static void * emalloc(size_t);
 static int mkdirtree(char *, mode_t);
 static int bit(uint8_t *, off_t);
@@ -42,6 +43,7 @@ static char * tohex(uint8_t *, char *, size_t);
 static char * tostr(char *, size_t);
 static char * urlencode(uint8_t *, size_t);
 
+/* benconding */
 static int beinit(struct be *, char *, size_t);
 static size_t beatol(char **, long *);
 static size_t beint(struct be *, long *);
@@ -57,6 +59,7 @@ static int bekv(struct be *, char *, size_t, struct be *);
 static int bepath(struct be *, char **, size_t);
 static size_t bestr2peer(struct peers *, char *, size_t);
 
+/* torrent metadata */
 static char *peerid();
 static size_t metainfohash(struct torrent *);
 static size_t metaannounce(struct torrent *);
@@ -64,6 +67,7 @@ static size_t metafiles(struct torrent *);
 static size_t metapieces(struct torrent *);
 static int metainfo(struct torrent *, char *, size_t);
 
+/* pieces/blocks */
 static int checkpiece(struct piece *);
 static ssize_t writepiece(struct torrent *, struct piece *);
 static ssize_t readpiece(struct torrent *, struct piece *, unsigned long);
@@ -72,15 +76,18 @@ static uint32_t blocklen(struct torrent *, struct piece, uint32_t);
 static long selectpiece(struct torrent *, uint8_t *);
 static long requestblock(struct torrent *, struct peer *);
 
+/* peers */
 static void cleanpeers(struct torrent *);
 static struct peer * findpeer(struct peers *, struct peer *);
 static struct peer * addpeer(struct peers *, struct sockaddr_in);
 
+/* THP communication */
 static size_t curlwrite(char *, size_t, size_t, struct buffer *);
 static int httpsend(struct torrent *, char *, struct be *);
 static int thppeers(struct torrent *, struct be *);
 static int thpsend(struct torrent *, int);
 
+/* PWP communication */
 static int pwpinit(struct peer *);
 static uint32_t pwpfmt(uint8_t *, int, uint8_t *, uint32_t);
 static ssize_t pwprecv(struct peer *);
