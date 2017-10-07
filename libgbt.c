@@ -43,6 +43,13 @@ static char * tohex(uint8_t *, char *, size_t);
 static char * tostr(char *, size_t);
 static char * urlencode(uint8_t *, size_t);
 
+/* ring buffer queue */
+static void rqinit(struct rq *, int, size_t);
+static void rqfree(struct rq *);
+static int rqfull(struct rq *);
+static int rqpush(struct rq *, void *);
+static void *rqpop(struct rq *);
+
 /* benconding */
 static int beinit(struct be *, char *, size_t);
 static size_t beatol(char **, long *);
@@ -210,6 +217,71 @@ urlencode(uint8_t *in, size_t len)
 	}
 
 	return out;
+}
+
+struct in_addr *
+getinetaddr(char *hostname)
+{
+        struct hostent *he;
+
+        if (!(he = gethostbyname(hostname))) {
+                herror(hostname);
+                return NULL;
+        }
+
+        return ((struct in_addr **)he->h_addr_list)[0];
+}
+
+static void
+rqinit(struct rq *rq, int n, size_t sz)
+{
+	rq->n = 0;
+	rq->sz = n;
+	rq->in = 0;
+	rq->out = 0;
+	rq->buf = emalloc(n * sz);
+}
+
+static void
+rqfree(struct rq *rq)
+{
+	free(rq->buf);
+}
+
+static int
+rqfull(struct rq *rq)
+{
+	return rq->n >= rq->sz;
+}
+
+static int
+rqpush(struct rq *rq, void *el)
+{
+	if (rqfull(rq))
+		return -1;
+
+	memcpy(&rq[rq->in], el, rq->sz);
+	rq->n++;
+	if (++rq->in >= rq->sz)
+		rq->in = 0;
+
+	return 0;
+}
+
+static void *
+rqpop(struct rq *rq)
+{
+	void *el = NULL;
+
+	if (!rq->n)
+		return NULL;
+
+	el = &rq[rq->out];
+	rq->n--;
+	if (++rq->out >= rq->sz)
+		rq->out = 0;
+
+	return el;
 }
 
 static int

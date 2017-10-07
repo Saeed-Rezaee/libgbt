@@ -50,6 +50,14 @@ struct be {
         char *off;
 };
 
+struct rq {
+	size_t n;
+	size_t sz;
+	size_t in;
+	size_t out;
+	void *buf;
+};
+
 struct file {
 	char path[PATH_MAX];
 	size_t len;
@@ -93,6 +101,8 @@ struct torrent {
 	size_t piecelen;
 	struct file *files;
 	struct peers *peers;
+	struct rq rxq;
+	struct rq txq;
 };
 
 int grizzly_load(struct torrent *, char *, long *);
