@@ -109,6 +109,7 @@ static ssize_t pwpcancel(struct peer *, off_t, off_t, size_t);
 static ssize_t pwpheartbeat(struct peer *);
 static int pwprecvhandler(struct torrent *, struct peer *, uint8_t *, ssize_t);
 static int pwphsck(struct torrent *, uint8_t *, size_t);
+static int pwpbind(struct torrent *, char *, int);
 
 static char *event[] = {
 	[THP_NONE]      = NULL,
@@ -1377,6 +1378,34 @@ pwphsck(struct torrent *to, uint8_t *hs, size_t l)
 	return 1;
 }
 
+static int
+pwpbind(struct torrent *to, char *host, int port)
+{
+	struct in_addr *h;
+	struct sockaddr_in s;
+
+	if (to->fd >= 0)
+		return 0;
+
+	if ((to->fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+		return -1;
+
+	h = getinetaddr(host);
+
+	memset(&s, 0, sizeof(s));
+	s.sin_family = AF_INET;
+	s.sin_addr.s_addr = h->s_addr;
+	s.sin_port = htons(port);
+
+	if (bind(to->fd, (struct sockaddr *)&s, sizeof(s)) < 0)
+		return -1;
+
+	if (listen(to->fd, PEER_MAX) < 0)
+		return -1;
+
+	return 0;
+}
+
 int
 grizzly_load(struct torrent *to, char *path, long *thpinterval)
 {
@@ -1558,27 +1587,11 @@ grizzly_seed(struct torrent *to)
 	socklen_t l;
 	fd_set rfds;
 	struct peer *p;
-	struct in_addr *h;
 	struct timeval tv;
-	struct sockaddr_in s, c;
+	struct sockaddr_in c;
 
-	if (to->fd < 0) {
-		if ((to->fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
-			return -1;
-
-		h = getinetaddr("0.0.0.0");
-
-		memset(&s, 0, sizeof(s));
-		s.sin_family = AF_INET;
-		s.sin_addr.s_addr = h->s_addr;
-		s.sin_port = htons(PWP_PORT);
-
-		if (bind(to->fd, (struct sockaddr *)&s, sizeof(s)) < 0)
-			return -1;
-
-		if (listen(to->fd, PEER_MAX) < 0)
-			return -1;
-	}
+	if (to->fd < 0)
+		pwpbind(to, "0.0.0.0", PWP_PORT);
 
 	FD_ZERO(&rfds);
 	FD_SET(to->fd, &rfds);
