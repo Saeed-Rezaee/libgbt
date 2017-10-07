@@ -42,6 +42,7 @@ static uint8_t *clrbit(uint8_t *, off_t);
 static char * tohex(uint8_t *, char *, size_t);
 static char * tostr(char *, size_t);
 static char * urlencode(uint8_t *, size_t);
+static struct in_addr * getinetaddr(char *);
 
 /* ring buffer queue */
 static void rqinit(struct rq *, int, size_t);
@@ -721,6 +722,7 @@ metapieces(struct torrent *to)
 static int
 metainfo(struct torrent *to, char *buf, size_t len)
 {
+	to->fd = -1;
 	to->npeer = 0;
 	to->upload = 0;
 	to->download = 0;
@@ -1546,6 +1548,61 @@ grizzly_leech(struct torrent *to)
 		}
 	}
 
+	return 1;
+}
+
+int
+grizzly_seed(struct torrent *to)
+{
+	int fd, n;
+	socklen_t l;
+	fd_set rfds;
+	struct peer *p;
+	struct in_addr *h;
+	struct timeval tv;
+	struct sockaddr_in s, c;
+
+	if (to->fd < 0) {
+		if ((to->fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+			return -1;
+
+		h = getinetaddr("0.0.0.0");
+
+		memset(&s, 0, sizeof(s));
+		s.sin_family = AF_INET;
+		s.sin_addr.s_addr = h->s_addr;
+		s.sin_port = htons(PWP_PORT);
+
+		if (bind(to->fd, (struct sockaddr *)&s, sizeof(s)) < 0)
+			return -1;
+
+		if (listen(to->fd, PEER_MAX) < 0)
+			return -1;
+	}
+
+	FD_ZERO(&rfds);
+	FD_SET(to->fd, &rfds);
+
+	tv.tv_sec = 0;
+	tv.tv_usec = 50000;
+	n = select(to->fd + 1, &rfds, NULL, NULL, &tv);
+	if (n < 0) {
+		if (errno == EINTR)
+	                return -1;
+		perror("select");
+        }
+
+	if (FD_ISSET(to->fd, &rfds)) {
+		l = sizeof(c);
+		if ((fd = accept(to->fd, (struct sockaddr *)&c, &l)) < 0)
+			return 1;
+
+		printf("%s:%d\n", inet_ntoa(c.sin_addr), c.sin_port);
+		p = addpeer(to->peers, c);
+		p->sockfd = fd;
+		p->conn = CONN_INIT;
+	}
+		
 	return 1;
 }
 
