@@ -586,7 +586,7 @@ bestr2peer(struct peers *ph, char *buf, size_t len)
 		addr.sin_family = AF_INET;
 		memcpy(&addr.sin_port, &buf[i * 6] + 4, 2);
 		memcpy(&addr.sin_addr, &buf[i * 6], 4);
-		if (addr.sin_port != 65535)
+		if (addr.sin_port != htons(PWP_PORT))
 			addpeer(ph, addr);
 	}
 
@@ -927,7 +927,7 @@ httpsend(struct torrent *to, char *ev, struct be *reply)
 		"%s?peer_id=%s&info_hash=%s&port=%d"
 		"&uploaded=%zu&downloaded=%zu&left=%zu"
 		"%s%s&numwant=%d&compact=1",
-		to->announce, to->peerid, infohash, 65535,
+		to->announce, to->peerid, infohash, PWP_PORT,
 		to->upload, to->download, to->size - to->download,
 		(ev ? "&event=" : ""), (ev ? ev : ""), PEER_MAX);
 

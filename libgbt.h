@@ -7,7 +7,8 @@
 #define PIECE_MAX 1048576
 #define BLOCK_MAX 16384
 #define MESSAGE_MAX ((BLOCK_MAX) + 13)
-#define PEER_MAX 8
+#define PEER_MAX 16
+#define PWP_PORT 6881
 
 enum {
 	PWP_CHOKE = 0,
