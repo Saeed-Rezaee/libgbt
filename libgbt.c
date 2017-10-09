@@ -985,6 +985,9 @@ addpeer(struct peers *ph, struct sockaddr_in addr)
 	p->state = 0;
 	p->state |= PEER_CHOKED;
 	p->state |= PEER_AMCHOKED;
+	p->lastreq = -1;
+	p->msglen = 0;
+	p->req.n = 0;
 	memcpy(&p->peer, &addr, sizeof(addr));
 	TAILQ_INSERT_TAIL(ph, p, entries);
 
@@ -1453,9 +1456,6 @@ grizzly_load(struct torrent *to, char *path, long *thpinterval)
 		pwpinit(p);
 		p->conn = CONN_INIT;
 		p->bitfield = emalloc(to->npiece / 8 + !!(to->npiece % 8));
-		p->lastreq = -1;
-		p->msglen = 0;
-		p->req.n = 0;
 	}
 
 	return 1;
@@ -1610,10 +1610,10 @@ grizzly_seed(struct torrent *to)
 		if ((fd = accept(to->fd, (struct sockaddr *)&c, &l)) < 0)
 			return 1;
 
-		printf("%s:%d\n", inet_ntoa(c.sin_addr), c.sin_port);
 		p = addpeer(to->peers, c);
 		p->sockfd = fd;
 		p->conn = CONN_INIT;
+		p->bitfield = emalloc(to->npiece / 8 + !!(to->npiece % 8));
 	}
 		
 	return 1;
