@@ -88,6 +88,7 @@ static long requestblock(struct torrent *, struct peer *);
 static void cleanpeers(struct torrent *);
 static struct peer * findpeer(struct peers *, struct peer *);
 static struct peer * addpeer(struct peers *, struct sockaddr_in);
+static struct peer * delpeer(struct torrent *, struct peer *);
 
 /* THP communication */
 static size_t curlwrite(char *, size_t, size_t, struct buffer *);
@@ -994,6 +995,20 @@ addpeer(struct peers *ph, struct sockaddr_in addr)
 	return p;
 }
 
+static struct peer *
+delpeer(struct torrent *to, struct peer *p)
+{
+	struct peer *q;
+	p->conn = CONN_CLOSED;
+	close(p->sockfd);
+	p->sockfd = -1;
+	to->npeer--;
+
+	q = TAILQ_PREV(p, peers, entries);
+	TAILQ_REMOVE(to->peers, p, entries);
+	return q;
+}
+
 static size_t
 curlwrite(char *ptr, size_t size, size_t nmemb, struct buffer *userdata)
 {
@@ -1510,8 +1525,7 @@ grizzly_leech(struct torrent *to)
 		return -1;
 
 	TAILQ_FOREACH(p, to->peers, entries) {
-		if (p->conn >= CONN_HANDSHAKE)
-			FD_SET(p->sockfd, &rfds);
+		FD_SET(p->sockfd, &rfds);
 		FD_SET(p->sockfd, &wfds);
 		if (p->sockfd > fdmax)
 			fdmax = p->sockfd;
@@ -1528,11 +1542,6 @@ grizzly_leech(struct torrent *to)
 
 	TAILQ_FOREACH(p, to->peers, entries) {
 		switch (p->conn) {
-		/* ignore dropped peers */
-		case CONN_CLOSED:
-			continue;
-			break; /* NOTREACHED */
-		/* set peer as connected */
 		case CONN_INIT:
 			if (FD_ISSET(p->sockfd, &wfds)) {
 				pwphandshake(to, p);
@@ -1544,10 +1553,7 @@ grizzly_leech(struct torrent *to)
 				p->conn = CONN_ESTAB;
 				l = pwprecv(p);
 				if (l < 0 || !pwphsck(to, p->msg, l)) {
-					p->conn = CONN_CLOSED;
-					close(p->sockfd);
-					p->sockfd = -1;
-					to->npeer--;
+					p = delpeer(to, p);
 					continue;
 				}
 				pwpbitfield(p, to->bitfield, to->npiece);
